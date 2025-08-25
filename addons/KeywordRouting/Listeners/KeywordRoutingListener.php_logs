@@ -1,0 +1,133 @@
+<?php
+namespace Addons\KeywordRouting\Listeners;
+
+use App\Events\VendorChannelBroadcast;
+use Addons\KeywordRouting\Models\KeywordRoutingRule;
+use App\Yantrana\Components\Contact\Models\ContactModel;
+use App\Yantrana\Components\Contact\Models\ContactLabelModel;
+use App\Yantrana\Components\WhatsAppService\Models\WhatsAppMessageLogModel;
+
+class KeywordRoutingListener
+{
+    public function handle(VendorChannelBroadcast $event)
+    {
+        $payload = $event->data;
+
+        // Extragem contactUid și verificăm că e mesaj incoming
+        $contactUid           = $payload['contactUid']           ?? null;
+        $isNewIncomingMessage = $payload['isNewIncomingMessage'] ?? false;
+
+        if (!$contactUid || !$isNewIncomingMessage) {
+            static $loggedOnce = false;
+            if (!$loggedOnce) {
+                \Log::info('KeywordRoutingListener: fără mesaj de procesat, sărim.', [
+                    'vendorUid' => $event->vendorUid,
+                    'payload'   => $payload,
+                ]);
+                $loggedOnce = true;
+            }
+            return;
+        }
+
+        \Log::info('KeywordRoutingListener: mesaj inbound recunoscut', [
+            'vendorUid'      => $event->vendorUid,
+            'contactUid'     => $contactUid,
+            'raw_payload'    => $payload,
+        ]);
+
+        // Găsim contactul după UID
+        $contact = ContactModel::where('_uid', $contactUid)->first();
+        if (!$contact) {
+            \Log::warning('KeywordRoutingListener: contact nu a fost găsit în DB', [
+                'contactUid' => $contactUid,
+            ]);
+            return;
+        }
+
+        \Log::info('KeywordRoutingListener: contact găsit', [
+            'contact_id' => $contact->_id,
+            'vendors__id'=> $contact->vendors__id,   // asta e ID-ul real al vendorului
+        ]);
+
+        // --- AICI a fost problema: foloseam $contact->user_id dar coloana reală este vendors__id ---
+        $vendorId = $contact->vendors__id;
+
+        // Preluăm ultimul mesaj incoming salvat în whatsapp_message_logs
+        $lastMessage = WhatsAppMessageLogModel::where('contacts__id', $contact->_id)
+            ->where('is_incoming_message', 1)
+            ->orderBy('messaged_at', 'desc')
+            ->first();
+
+        if (!$lastMessage) {
+            \Log::warning('KeywordRoutingListener: nu am găsit niciun mesaj incoming în DB', [
+                'contact_id' => $contact->_id,
+            ]);
+            return;
+        }
+
+        // Obținem corpul textului
+        $messageBody = $lastMessage->message ?? null;
+        if (!$messageBody) {
+            \Log::warning('KeywordRoutingListener: mesajul găsit nu conține text', [
+                'messageLogId' => $lastMessage->_id,
+            ]);
+            return;
+        }
+
+        \Log::info('KeywordRoutingListener: text mesaj găsit din DB', [
+            'contact_id'  => $contact->_id,
+            'messageBody' => $messageBody,
+        ]);
+
+        // --- Modificarea principală: căutăm regulile cu vendorId (nu user_id) ---
+        $rules = KeywordRoutingRule::where('user_id', $vendorId)->get();
+
+        \Log::info('KeywordRoutingListener: reguli de keyword găsite', [
+            'user_id' => $vendorId,
+            'count'   => $rules->count(),
+        ]);
+
+        foreach ($rules as $rule) {
+            if (stripos($messageBody, $rule->keyword) !== false) {
+                \Log::info('KeywordRoutingListener: cuvânt-cheie potrivit', [
+                    'keyword'    => $rule->keyword,
+                    'contact_id' => $contact->_id,
+                    'tag_id'     => $rule->tag_id,
+                    'agent_id'   => $rule->agent_id,
+                ]);
+
+               if ($rule->tag_id) {
+    $exists = ContactLabelModel::where('contacts__id', $contact->_id)
+        ->where('labels__id', $rule->tag_id)
+        ->exists();
+
+    if (!$exists) {
+        \Log::info('KeywordRoutingListener: adaug etichetă', [
+            'contacts__id' => $contact->_id,
+            'labels__id'   => $rule->tag_id,
+        ]);
+
+        // În loc de ::create(), facem atribuiri explicite + save()
+        $label = new ContactLabelModel();
+        $label->contacts__id = $contact->_id;
+        $label->labels__id   = $rule->tag_id;
+        $label->save();
+    }
+}
+
+               if ($rule->agent_id) {
+    // În loc de assigned_to, folosim assigned_users__id
+    $contact->assigned_users__id = $rule->agent_id;
+    $contact->save();
+    \Log::info('KeywordRoutingListener: agent atribuit contactului', [
+        'agent_id'   => $rule->agent_id,
+        'contact_id' => $contact->_id,
+    ]);
+}
+
+                // Dacă vrei să te oprești după primul match, de-comentează:
+                // break;
+            }
+        }
+    }
+}
