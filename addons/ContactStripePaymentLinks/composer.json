@@ -1,0 +1,13 @@
+{
+    "name": "whatsjet-addons/contact-stripe-payment-links",
+    "description": "Contact Stripe Payment Links for WhatsJet",
+    "type": "addon",
+    "autoload": {
+        "psr-4": {
+            "Addons\\ContactStripePaymentLinks\\": "src/"
+        }
+    },
+    "require": {
+        "stripe/stripe-php": "^16.3"
+    }
+}
