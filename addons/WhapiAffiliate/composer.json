@@ -1,0 +1,10 @@
+{
+    "name": "whatsjet-addons/whapi-affiliate",
+    "description": "Whapi affiliate tracking integration for WhatsJet",
+    "type": "addon",
+    "autoload": {
+        "psr-4": {
+            "Addons\\WhapiAffiliate\\": "src/"
+        }
+    }
+}
