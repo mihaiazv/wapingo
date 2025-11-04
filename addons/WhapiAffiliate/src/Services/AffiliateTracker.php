@@ -127,8 +127,6 @@ class AffiliateTracker
      */
     protected function resolveClientIp(Request $request): string
     {
-        $server = $request->server();
-
         $candidates = [
             'HTTP_CLIENT_IP',
             'HTTP_X_FORWARDED_FOR',
