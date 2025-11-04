@@ -2,7 +2,23 @@
 
 namespace Addons\WhapiAffiliate;
 
+use Addons\WhapiAffiliate\Decorators\ManualSubscriptionEngineDecorator;
+use Addons\WhapiAffiliate\Decorators\SubscriptionEngineDecorator;
+use Addons\WhapiAffiliate\Services\AffiliateTracker;
+use App\Yantrana\Base\BaseMailer;
+use App\Yantrana\Components\Auth\Repositories\AuthRepository;
+use App\Yantrana\Components\Dashboard\DashboardEngine;
+use App\Yantrana\Components\Subscription\ManualSubscriptionEngine as BaseManualSubscriptionEngine;
 use App\Yantrana\Components\Subscription\Models\ManualSubscriptionModel;
+use App\Yantrana\Components\Subscription\PaymentEngines\PaystackEngine;
+use App\Yantrana\Components\Subscription\PaymentEngines\PaypalEngine;
+use App\Yantrana\Components\Subscription\PaymentEngines\PhonePeEngine;
+use App\Yantrana\Components\Subscription\PaymentEngines\RazorpayEngine;
+use App\Yantrana\Components\Subscription\PaymentEngines\YoomoneyEngine;
+use App\Yantrana\Components\Subscription\Repositories\ManualSubscriptionRepository;
+use App\Yantrana\Components\Subscription\Repositories\SubscriptionRepository;
+use App\Yantrana\Components\Subscription\SubscriptionEngine as BaseSubscriptionEngine;
+use App\Yantrana\Components\Vendor\Repositories\VendorRepository;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -10,6 +26,35 @@ class WhapiAffiliateServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(AffiliateTracker::class, fn () => new AffiliateTracker());
+
+        $this->app->bind(BaseSubscriptionEngine::class, function ($app) {
+            return new SubscriptionEngineDecorator(
+                $app->make(SubscriptionRepository::class),
+                $app->make(VendorRepository::class),
+                $app->make(ManualSubscriptionRepository::class),
+                $app->make(DashboardEngine::class),
+                $app->make(AffiliateTracker::class),
+            );
+        });
+
+        $this->app->bind(BaseManualSubscriptionEngine::class, function ($app) {
+            return new ManualSubscriptionEngineDecorator(
+                $app->make(ManualSubscriptionRepository::class),
+                $app->make(VendorRepository::class),
+                $app->make(PaypalEngine::class),
+                $app->make(AuthRepository::class),
+                $app->make(BaseMailer::class),
+                $app->make(DashboardEngine::class),
+                $app->make(RazorpayEngine::class),
+                $app->make(PaystackEngine::class),
+                $app->make(YoomoneyEngine::class),
+                $app->make(BaseSubscriptionEngine::class),
+                $app->make(PhonePeEngine::class),
+                $app->make(AffiliateTracker::class),
+            );
+        });
+
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'WhapiAffiliate');
     }
 
