@@ -56,7 +56,28 @@ class UserController extends BaseController
      */
     public function profileEditForm()
     {
-        return $this->loadView('user.profile-edit');
+        $processResponse = $this->userEngine->prepare2FAQrCode();
+
+        return $this->loadView('user.profile-edit', [
+            'qrCodeSvg' => $processResponse->data('qrCodeSvg')
+        ]);
+    }
+
+    /**
+     * Confirmation for 2FA Authentication Code.
+     */
+    public function confirm2FAuthentication(CommonClearPostRequest $request)
+    {
+        $request->validate([
+            'confirm_code' => 'required'
+        ]);
+
+        $processReaction = $this->userEngine->process2FAuthenticationConfirm($request->all());
+
+        // response
+        return $this->processResponse($processReaction, [], [
+            'show_message' => true,
+        ], true);
     }
 
     /**

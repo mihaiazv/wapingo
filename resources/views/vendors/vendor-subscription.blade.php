@@ -252,14 +252,17 @@ $planDetails = vendorPlanDetails(null, null, $vendorInfo['id']);
             </x-lw.modal>
             <!--/ Edit Manual Subscription Modal -->
             <script type="text/template" id="manualSubscriptionActionColumnTemplate">
-                <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update') }}" class="lw-btn btn btn-sm btn-default lw-ajax-link-action" data-response-template="#lwEditManualSubscriptionBody" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.read.update.data', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>"  data-toggle="modal" data-target="#lwEditManualSubscription"><i class="fa fa-edit"></i> {{  __tr('Update') }}</a>
-                <a data-method="post" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.write.delete', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>" class="btn btn-danger btn-sm lw-ajax-link-action-via-confirm" data-confirm="#lwDeleteManualSubscription-template" title="{{ __tr('Delete') }}" data-callback-params="{{ json_encode(['datatableId' => '#lwManualSubscriptionList']) }}" data-callback="appFuncs.modelSuccessCallback"><i class="fa fa-trash"></i> {{  __tr('Delete') }}</a>
+                <% if(!__tData.is_auto_recurring) { %>
+                    <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update') }}" class="lw-btn btn btn-sm btn-default lw-ajax-link-action" data-response-template="#lwEditManualSubscriptionBody" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.read.update.data', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>"  data-toggle="modal" data-target="#lwEditManualSubscription"><i class="fa fa-edit"></i> {{  __tr('Update') }}</a>
+                    
+                    <a data-method="post" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.write.delete', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>" class="btn btn-danger btn-sm lw-ajax-link-action-via-confirm" data-confirm="#lwDeleteManualSubscription-template" title="{{ __tr('Delete') }}" data-callback-params="{{ json_encode(['datatableId' => '#lwManualSubscriptionList']) }}" data-callback="appFuncs.modelSuccessCallback"><i class="fa fa-trash"></i> {{  __tr('Delete') }}</a>
+                <% } %>
             </script>
- <!-- Manual Subscription delete template -->
-        <script type="text/template" id="lwDeleteManualSubscription-template">
-            <h2>{{ __tr('Are You Sure!') }}</h2>
-            <p>{{ __tr('You want to delete this Subscription?') }}</p>
-    </script>
+            <!-- Manual Subscription delete template -->
+            <script type="text/template" id="lwDeleteManualSubscription-template">
+                <h2>{{ __tr('Are You Sure!') }}</h2>
+                <p>{{ __tr('You want to delete this Subscription?') }}</p>
+            </script>
             <script type="text/template" id="manualSubscriptionStatusColumnTemplate">
                 <% if(__tData.status == 'Pending') { %>
                     <span class="badge badge-warning">{{  __tr('Pending') }}</span>

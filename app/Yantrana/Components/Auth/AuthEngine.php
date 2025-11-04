@@ -124,6 +124,19 @@ class AuthEngine extends BaseEngine implements AuthEngineInterface
 
          //if mobile request
          if (isMobileAppRequest()) {
+
+            // Check if 2FA Enabled
+            if ($user->two_factor_secret and !__isEmpty($user->two_factor_confirmed_at)) {
+                // Logout user from mobile app
+                Auth::logout();
+
+                // Return success response and ask for authentication code
+                return $this->engineReaction(1, [
+                    'two_factor_auth_enabled' => true,
+                    'user_id' => $user->_id
+                ], __tr('Please verify your identity using the authentication code.'));
+            }
+
             //issue new token
             $authToken = YesTokenAuth::issueToken([
                 'aud' => $user->_id,
@@ -133,6 +146,7 @@ class AuthEngine extends BaseEngine implements AuthEngineInterface
             return $this->engineReaction(1, [
                 'auth_info' => getUserAuthInfo(1),
                 'access_token' => $authToken,
+                'two_factor_auth_enabled' => false,
             ], __tr('Welcome, you are logged in successfully.'));
         }
 
@@ -507,6 +521,67 @@ class AuthEngine extends BaseEngine implements AuthEngineInterface
             //success response
             return $this->engineSuccessResponse([
                 'show_message' => true
+            ], __tr('Welcome, you are logged in successfully.'));
+        }
+
+        //error response
+        return $this->engineFailedResponse([], __tr("Invalid request."));
+    }
+
+    /**
+     * Process Verify Two Factor Authentication
+     *
+     * @param Object $request
+     * @return EngineReaction
+     */
+    function processVerifyTwoFactorAuthentication($request)
+    {
+        $isValidCode = false;
+        $message = '';
+        $failedMessage = '';
+        //fetch user
+        $user = $this->authRepository->fetch($request->user_id);
+
+        //check user is empty
+        if (__isEmpty($user)) {
+            return $this->engineFailedResponse([], __tr('User not exists.'));
+        }
+
+        if ($request->filled('code')) {
+            if ($user->verifyTwoFactorAuth($request->code)) {
+                $isValidCode = true;
+                $message = __tr('Two-factor code verified.');
+            } else {
+                $failedMessage = __tr("The provided two factor authentication code was invalid.");
+            }
+        }
+
+        if ($request->filled('recovery_code')) {
+            if ($user->verifyRecoveryCode($request->recovery_code)) {
+                $isValidCode = true;
+                $message = __tr('Recovery code verified.');
+            } else {
+                $failedMessage = __tr("The provided two factor recovery code was invalid..");
+            }
+        }
+
+        if (!$isValidCode) {
+            return $this->engineFailedResponse([], __tr("The provided two factor authentication code was invalid."));
+        }
+        
+        // Get logged in if credentials valid
+        if ($isValidCode and Auth::loginUsingId($user->_id)) {
+
+            //issue new token
+            $authToken = YesTokenAuth::issueToken([
+                'aud' => $user->_id,
+                'uaid' => $user->user_authority_id,
+            ]);
+
+            return $this->engineReaction(1, [
+                'auth_info' => getUserAuthInfo(1),
+                'access_token' => $authToken,
+                'two_factor_auth_enabled' => false,
             ], __tr('Welcome, you are logged in successfully.'));
         }
 

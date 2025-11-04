@@ -143,6 +143,8 @@
                                             @foreach ($plan['charges'] as $itemKey => $itemValue)
                                                 @php
                                                     $itemValue = $planDetails[$planKey]['charges'][$itemKey];
+                                                    $enableRazorpaySubscription = getAppSettings('enable_razorpay_subscription');
+                                                    $enableStripe = getAppSettings('enable_stripe');
                                                 @endphp
                                                 <fieldset class="col-xl-3 float-left mr-4">
                                                     <legend>{{ $itemKey }}</legend>
@@ -151,12 +153,14 @@
                                                         data-lw-plugin="lwSwitchery"
                                                         :label="__tr('Enable this Charge')" />
                                                     <hr class="my-2">
+                                                    @if($enableRazorpaySubscription or $enableStripe)
                                                     <x-lw.input-field type="text"
                                                         id="{{ $planId }}_{{ $itemKey }}_plan_price_id"
                                                         name="{{ $itemKey }}_plan_price_id"
-                                                        :label="__tr('Stripe Plan Price ID')"
-                                                        placeholder="{{ __tr('stripe plan price id') }}"
+                                                        label="{{ __tr('Plan ID') }}"
+                                                        placeholder="{{ __tr('Plan ID') }}"
                                                         value="{{ $itemValue['price_id'] }}" />
+                                                    @endif
                                                     <x-lw.input-field type="number"
                                                         id="{{ $planId }}_{{ $itemKey }}_charge"
                                                         name="{{ $itemKey }}_charge" :label="__tr('Charge Amount')"

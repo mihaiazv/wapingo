@@ -1,6 +1,18 @@
-   
+<?php $logStatus = request()->route('logStatus'); ?>
+<ul class="nav nav-tabs col-12 mb-3" id="myTab" role="tablist">
+    @if(!__isEmpty($executedMessageStatusCodes))
+        @foreach($executedMessageStatusCodes as $executedMessageIndex => $executedMessageStatus)
+            <li class="nav-item" role="presentation">
+                <a class="nav-link <?= (($logStatus == $executedMessageIndex) || (__isEmpty($logStatus) && $executedMessageIndex == 'all')) ? 'active' : '' ?>" href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'executed', 'logStatus' => $executedMessageIndex]) ?>#logData">
+                    <?= $executedMessageStatus ?>
+                </a>
+            </li>
+        @endforeach
+    @endif
+</ul>
+
 {{-- datatable executed log --}}
-<x-lw.datatable lw-card-classes="border-0" data-page-length="100" id="lwCampaignQueueLog" :url="route('vendor.campaign.executed.log.list.view', ['campaignUid' => $campaignUid])">
+<x-lw.datatable lw-card-classes="border-0" data-page-length="100" id="lwCampaignQueueLog" :url="route('vendor.campaign.executed.log.list.view', ['campaignUid' => $campaignUid, 'logStatus' => $logStatus])">
     <th data-orderable="true" data-name="full_name">{{ __tr('Name') }}</th>
     <th data-orderable="true" data-name="contact_wa_id">{{ __tr('Phone Number') }}</th>
     <th data-orderable="true" data-template="#campaignStatusMessage" data-name="messaged_at">{{ __tr('Message Delivery Status') }}</th>

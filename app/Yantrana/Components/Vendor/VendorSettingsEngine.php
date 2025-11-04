@@ -263,7 +263,7 @@ class VendorSettingsEngine extends BaseEngine implements VendorSettingsEngineInt
                 if (Arr::get($defaultSettings, "$inputKey.ignore_empty") and ! $inputValue) {
                     continue;
                 }
-
+                
                 // Check if default text and form text not same
                 $castValues = $this->castValue(
                     ($defaultSettings[$inputKey]['data_type'] == 4)
@@ -283,6 +283,7 @@ class VendorSettingsEngine extends BaseEngine implements VendorSettingsEngineInt
                         'data_type' => $defaultSettings[$inputKey]['data_type'],
                     ];
                 }
+                
                 // if not done through Embedded signup
                 if (!array_key_exists('embedded_setup_done_at', $inputData)) {
                     // register webhook

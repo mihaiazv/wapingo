@@ -148,7 +148,7 @@ class CampaignController extends BaseController
     * @param  mix  $campaignIdOrUid
     * @return json object
     *---------------------------------------------------------------- */
-    public function campaignStatusView($campaignUid, $pageType = null)
+    public function campaignStatusView($campaignUid, $pageType = null, $logStatus = 'all')
     {
         validateVendorAccess('manage_campaigns');
         $campaignDataResponse = $this->campaignEngine->prepareCampaignData($campaignUid);
@@ -172,11 +172,11 @@ class CampaignController extends BaseController
       * @return  json object
       *---------------------------------------------------------------- */
 
-    public function campaignQueueLogListView($campaignIdOrUid)
+    public function campaignQueueLogListView($campaignIdOrUid, $logStatus = 'all')
     {
         validateVendorAccess('manage_campaigns');
         // respond with dataTables preparations
-        return $this->campaignEngine->prepareCampaignQueueLogList($campaignIdOrUid);
+        return $this->campaignEngine->prepareCampaignQueueLogList($campaignIdOrUid, $logStatus);
     }
 
     /**
@@ -185,11 +185,11 @@ class CampaignController extends BaseController
       * @return  json object
       *---------------------------------------------------------------- */
 
-    public function campaignExecutedLogListView($campaignIdOrUid)
+    public function campaignExecutedLogListView($campaignIdOrUid, $logStatus = 'all')
     {
         validateVendorAccess('manage_campaigns');
         // respond with dataTables preparations
-        return $this->campaignEngine->prepareCampaignExecutedLogList($campaignIdOrUid);
+        return $this->campaignEngine->prepareCampaignExecutedLogList($campaignIdOrUid, $logStatus);
     }
 
     /**

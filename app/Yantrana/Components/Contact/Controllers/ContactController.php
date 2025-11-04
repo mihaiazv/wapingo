@@ -157,7 +157,7 @@ class ContactController extends BaseController
         }
 
         // ask engine to process the request
-        $processReaction = $this->contactEngine->processDeleteAllContact($request);
+        $processReaction = $this->contactEngine->processDeleteAllContact($request->all());
 
         // get back to controller with engine response
         return $this->processResponse($processReaction, [], [], true);
@@ -309,6 +309,46 @@ class ContactController extends BaseController
         
         // ask engine to process the request
         $processReaction = $this->contactEngine->processAssignChatUser($request);
+        if ($processReaction->success()) {
+            // get back with response
+            return $this->processApiResponse($processReaction, $processReaction->data());
+        }
+
+        return $this->processApiResponse($processReaction, $processReaction->data());
+    }
+
+    /**
+     * API Get Contact List
+     *
+     * @return json object
+     *---------------------------------------------------------------- */
+    public function apiGetContactList()
+    {
+        validateVendorAccess('manage_contacts');
+        // process the validation based on the provided rules
+        
+        // ask engine to process the request
+        $processReaction = $this->contactEngine->apiPrepareContactListData();
+        if ($processReaction->success()) {
+            // get back with response
+            return $this->processApiResponse($processReaction, $processReaction->data());
+        }
+
+        return $this->processApiResponse($processReaction, $processReaction->data());
+    }
+
+    /**
+     * API Get Contact
+     *
+     * @return json object
+     *---------------------------------------------------------------- */
+    public function apiGetContact()
+    {
+        validateVendorAccess('manage_contacts');
+        // process the validation based on the provided rules
+        
+        // ask engine to process the request
+        $processReaction = $this->contactEngine->apiPrepareContact();
         if ($processReaction->success()) {
             // get back with response
             return $this->processApiResponse($processReaction, $processReaction->data());
@@ -680,6 +720,45 @@ class ContactController extends BaseController
         validateVendorAccess('administrative');
         // ask engine to process the request
         $processReaction = $this->contactEngine->prepareTeamMemberListData($contactIdOrUid);
+        // get back to controller with engine response
+        return $this->processResponse($processReaction, [], [], true);
+    }
+
+    /**
+    * Get Contact filter support data
+    *
+    * @return  json object
+    *---------------------------------------------------------------- */
+
+    public function getContactFilterSupportData()
+    {
+        validateVendorAccess('administrative');
+        // ask engine to process the request
+        $processReaction = $this->contactEngine->prepareContactFilterSupportData();
+        // get back to controller with engine response
+        return $this->processResponse($processReaction, [], [], true);
+    }
+
+    /**
+    * Store contact filter data
+    *
+    * @return  json object
+    *---------------------------------------------------------------- */
+
+    public function processStoreContactFilter(BaseRequest $request)
+    {
+        validateVendorAccess('administrative');
+        
+        if (!$request->has('clear_filter')) {
+            $request->validate([
+                'email' => 'nullable|email',
+                'msg_start_date' => 'nullable|required_with:msg_end_date|before_or_equal:msg_end_date|date',
+                'msg_end_date' => 'nullable|required_with:msg_start_date|after_or_equal:msg_start_date|date'
+            ]);
+        }
+
+        // ask engine to process the request
+        $processReaction = $this->contactEngine->storeContactFilterProcess($request->all());
         // get back to controller with engine response
         return $this->processResponse($processReaction, [], [], true);
     }

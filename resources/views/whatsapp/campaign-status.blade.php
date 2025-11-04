@@ -329,13 +329,13 @@ $campaignUid=$campaign->_uid;
         <ul class="nav nav-tabs col-12 pr-5" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <a class="nav-link <?= $pageType == "queue" ? 'active' : '' ?>"
-                   href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'queue']) ?>#logData">
+                   href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'queue', 'logStatus' => 'all']) ?>#logData">
                     <?= __tr('Queue') ?>
                 </a>
             </li>
             <li class="nav-item" role="presentation">
                 <a class="nav-link <?= $pageType == "executed" ? 'active' : '' ?>"
-                   href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'executed']) ?>#logData">
+                   href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'executed', 'logStatus' => 'all']) ?>#logData">
                     <?= __tr('Executed') ?>
                 </a>
             </li>

@@ -1198,6 +1198,25 @@ if (! function_exists('getVendorCurrentActiveSubscription')) {
     }
 }
 
+if (! function_exists('getVendorCurrentAutoCreatedSubscription')) {
+    /**
+     * Get current active subscription
+     *
+     * @return null|Eloquent
+     */
+    function getVendorCurrentAutoCreatedSubscription($vendorId = null, $status = 'initiate')
+    {
+        if (!$vendorId) {
+            $vendorId = getVendorId();
+        }
+        return ManualSubscriptionModel::where([
+                    'vendors__id' => $vendorId,
+                    'status' => $status,
+                    'is_auto_recurring' => 1
+                ])->latest()->first();
+    }
+}
+
 if (! function_exists('vendorPlanDetails')) {
     /**
      * Get the subscription details of the vendor
@@ -1286,7 +1305,7 @@ if (! function_exists('vendorPlanDetails')) {
             $detailsContainer['message'] = __tr('Available Unlimited');
         }
         // may over usages
-        elseif ($currentUsage > $featureLimitCount) {
+        elseif ($currentUsage >= $featureLimitCount) {
             $isAvailable = -1;
             if ($detailsContainer['has_active_plan'] === true) {
                 $detailsContainer['message'] = __tr('You used up your __limitDuration__ plan allowed __resourceLimit__ limit, please upgrade your plan.', [
@@ -1540,6 +1559,21 @@ if (! function_exists('updateModelsViaVendorBroadcast')) {
     {
         return event(new VendorChannelBroadcast($vendorUid, [
             'eventModelUpdate' => $data
+        ]));
+    }
+}
+if (! function_exists('reloadViewViaVendorBroadcast')) {
+    /**
+     * Prepare and send data for client models update
+     *
+     * @param string $vendorUid
+     * @param array $data
+     * @return array|null
+     */
+    function reloadViewViaVendorBroadcast(string $vendorUid)
+    {
+        return event(new VendorChannelBroadcast($vendorUid, [
+             'reload' => true
         ]));
     }
 }

@@ -38,6 +38,8 @@ use App\Yantrana\Components\Auth\AuthEngine;
 use App\Yantrana\Components\Auth\Requests\LoginRequest;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Yantrana\Components\Auth\Requests\RegisterRequest;
+use Illuminate\Support\Facades\Auth;
+use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 
 class AuthController extends BaseController
 {
@@ -73,7 +75,7 @@ class AuthController extends BaseController
      * @param object UserLoginRequest $request
      * @return json object
      *---------------------------------------------------------------- */
-    public function processLogin(LoginRequest $request)
+    public function processLogin(LoginRequest $request, RedirectIfTwoFactorAuthenticatable $twoFactorRedirect)
     {
         $processReaction = $this->authEngine->processLogin($request);
         //check reaction code equal to 1
@@ -109,6 +111,22 @@ class AuthController extends BaseController
                         __tr('Account is not activated yet, please check your email to activate account.'),
                     ])
                 );
+            }
+
+            // Get current logged in user details
+            $currentUser = Auth::user();
+            // Check if 2FA is enabled
+            if ($currentUser->two_factor_secret and !__isEmpty($currentUser->two_factor_confirmed_at)) {
+                // Temporarily logout
+                $this->authEngine->processLogout($request);
+                // Check and set user session
+                if ($response = $twoFactorRedirect->handle($request, $currentUser)) {
+                    // Redirect to 2FA Challenge View
+                    return $this->responseAction(
+                        $this->processResponse($processReaction, [], [], true),
+                        $this->redirectTo('auth.two_factor_challenge.view')
+                    );
+                }
             }
 
             return $this->responseAction(
@@ -549,5 +567,56 @@ class AuthController extends BaseController
         } catch (Expression $e) {
             throw $e;
         }
+    }
+
+    /**
+     * Show view for Two Factor Authentication Challenge.
+     *
+     * @return json object
+     *---------------------------------------------------------------- */
+    public function showTwoFactorChallengeView ()
+    {
+        return $this->loadView('auth.two-factor-challenge');
+    }
+
+    /**
+     * Show view for Two Factor Authentication Recovery Code
+     *
+     * @return json object
+     *---------------------------------------------------------------- */
+    public function showTwoFactorChallengeRecoveryView ()
+    {
+        return $this->loadView('auth.two-factor-recovery');
+    }
+
+    /**
+     * Verify Two Factor Authentication for mobile App.
+     *
+     * @param  \Illuminate\Http\CommonRequest $request
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function verifyTwoFactorAuthentication(CommonRequest $request)
+    {
+        $verifyVia = $request->get('verify_via');
+        
+        $validation = [
+            'verify_via' => 'required|string|in:code,recovery_code'
+        ];
+
+        // Check 2FA using code or recovery code
+        if ($verifyVia == 'code') {
+            $validation['code'] = 'required|min:6';
+        } else {
+            $validation['recovery_code'] = 'required';
+        }
+        
+        // check validations
+        $request->validate($validation);
+
+        $processReaction = $this->authEngine->processVerifyTwoFactorAuthentication($request);
+
+        //check reaction code equal to 1
+        return $this->processResponse($processReaction, [], [], true);
     }
 }

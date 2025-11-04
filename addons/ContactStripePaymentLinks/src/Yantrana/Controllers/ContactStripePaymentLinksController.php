@@ -4,6 +4,8 @@ namespace Addons\ContactStripePaymentLinks\Yantrana\Controllers;
 
 use Stripe\StripeClient;
 use App\Yantrana\Base\BaseRequestTwo;
+use App\Yantrana\Base\BaseRequest;
+use App\Yantrana\Components\BotReply\Controllers\BotReplyController;
 use Illuminate\Support\Facades\Response;
 use App\Yantrana\Base\AddonBaseController;
 use App\Yantrana\Components\Contact\Repositories\ContactRepository;
@@ -34,10 +36,80 @@ class ContactStripePaymentLinksController extends AddonBaseController
             'whatsAppTemplates' => $whatsAppApprovedTemplates
         ]);
     }
+    
+    private function generatePaymentLink(float $amount, string $contactIdOrUid, int $vendorId)
+    {
+        $orderId = uniqid('payment_');
+
+        $this->stripe = new StripeClient(getVendorSettings('lw_addon_cpl_stripe_secret_key', null, null, $vendorId)); // folosește config
+
+        // Creare Price
+        $price = $this->stripe->prices->create([
+            'unit_amount' => $amount * 100,
+            'currency' => getVendorSettings('lw_addon_cpl_stripe_currency_code', null, null, $vendorId),
+            'product_data' => [
+                'name' => $orderId,
+            ],
+        ]);
+
+        // Creare Payment Link
+        $paymentLink = $this->stripe->paymentLinks->create([
+            'line_items' => [[
+                'price' => $price->id,
+                'quantity' => 1,
+            ]],
+            'metadata' => [
+                'order_id' => $orderId,
+                'contact_uid' => $contactIdOrUid,
+                'stripe_price_id' => $price->id,
+            ],
+        ]);
+
+        return $paymentLink;
+    }
+
+    public function createPaymentLink(BaseRequestTwo $request)
+    {
+        $vendorId = getVendorId();
+        $request->validate([
+            'lw_send_payment_link_message' => 'string|min:1',
+            'lw_send_payment_link_amount' => 'required|numeric|min:1',
+            'bot_flow_uid' => 'string',
+        ]);
+
+        try {
+            $paymentLink = $this->generatePaymentLink(
+                $request->get('lw_send_payment_link_amount'),
+                $request->get('bot_flow_uid'),
+                $vendorId
+            );
+
+            $data = $request->all();
+            $data['interactive_type'] = 'cta_url';
+            $data['message_type'] = 'interactive';
+            $data['header_type'] = '';
+            $data['button_display_text'] = $request->get('button_display_text');
+            $data['button_url'] = $paymentLink->url;
+            $data['reply_text'] = $request->get('reply_text');
+
+            $newRequest = new BaseRequest($data);
+
+            app(BotReplyController::class)->processBotReplyCreate($newRequest);
+
+            return $this->processResponse(1, [
+                1 => __tr('Payment link'),
+            ]);
+        } catch (\Exception $e) {
+            return $this->processResponse(2, [
+                2 => $e->getMessage()
+            ]);
+        }
+    }
 
     public function createAndSendPaymentLink(BaseRequestTwo $request)
     {
         validateVendorAccess('messaging');
+
         $vendorId = getVendorId();
         $request->validate([
             'lw_send_payment_link_message' => 'required|string|min:1',
@@ -45,43 +117,20 @@ class ContactStripePaymentLinksController extends AddonBaseController
             'contactIdOrUid' => 'required|string',
         ]);
 
-        $amount = $request->get('lw_send_payment_link_amount');
-        $messageWithLink = $request->get('lw_send_payment_link_message');
-        $contactIdOrUid = $request->get('contactIdOrUid');
-        $orderId = uniqid('payment_'); // Generate a unique order ID
-
         try {
-            $this->stripe = new StripeClient(getVendorSettings('lw_addon_cpl_stripe_secret_key'));
-            // Create a Price object
-            $price = $this->stripe->prices->create([
-                'unit_amount' => ($amount * 100), // Amount in cents
-                'currency' => getVendorSettings('lw_addon_cpl_stripe_currency_code', null, null, $vendorId),
-                'product_data' => [
-                    'name' => $orderId,
-                ],
-            ]);
-            // Create a payment link using the Price ID
-            $paymentLink = $this->stripe->paymentLinks->create([
-                'line_items' => [
-                    [
-                        'price' => $price->id, // Use the Price ID
-                        'quantity' => 1,
-                    ],
-                ],
-                'metadata' => [
-                    'order_id' => $orderId,
-                    'contact_uid' => $contactIdOrUid,
-                    'stripe_price_id' => $price->id,
-                ],
-            ]);
-            // send a link in whatsapp
+            $paymentLink = $this->generatePaymentLink(
+                $request->get('lw_send_payment_link_amount'),
+                $request->get('contactIdOrUid'),
+                $vendorId
+            );
+
             whatsAppServiceEngine()->processSendChatMessage([
-                'messageBody' => $messageWithLink,
-                'contactUid' => $contactIdOrUid
-            ], false, getVendorId(), [
+                'messageBody' => $request->get('lw_send_payment_link_message'),
+                'contactUid' => $request->get('contactIdOrUid')
+            ], false, $vendorId, [
                 'interaction_message_data' => [
-                    'interactive_type' => 'cta_url', // cta_url, button, list
-                    'body_text' => $messageWithLink,
+                    'interactive_type' => 'cta_url',
+                    'body_text' => $request->get('lw_send_payment_link_message'),
                     'cta_url' => [
                         'display_text' => getVendorSettings('lw_addon_cpl_stripe_button_label', null, null, $vendorId) ?: 'Pay',
                         'url' => $paymentLink->url,
@@ -102,12 +151,20 @@ class ContactStripePaymentLinksController extends AddonBaseController
     // Handle webhook for payment events
     public function handleStripeWebhook(BaseRequestTwo $request, $vendorUid)
     {
+        
+        file_put_contents(
+    storage_path('logs/stripe_webhook.txt'),
+    print_r($request->all(), true) . PHP_EOL . str_repeat('-', 50) . PHP_EOL,
+    FILE_APPEND
+);
+        
         $vendorId = getPublicVendorId($vendorUid);
         if (! $vendorId) {
             return false;
         }
         $payload = $request->getContent();
         $signature = $request->header('Stripe-Signature');
+
 
         try {
             $event = \Stripe\Webhook::constructEvent(

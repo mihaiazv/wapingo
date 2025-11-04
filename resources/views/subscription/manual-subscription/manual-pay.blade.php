@@ -143,6 +143,16 @@ $paymentMethod = $subscriptionRequestRecord->__data['manual_txn_details']['selec
             <div class="alert">
                 <a class="lw-ajax-link-action btn btn-danger" data-show-processing="true" data-method="post" href="{{ route('vendor.subscription_manual_pay.delete_request') }}">{{  __tr('Cancel Request') }}</a>
             </div>
+            @elseif($paymentMethod == 'phonepe' and $subscriptionRequestRecord->status == 'initiated')
+                <fieldset class="col-sm-12 col-lg-6 offset-lg-3 pay-box-padding">
+                    <legend><img height="50" src="{{ asset('imgs/phonepe.png') }}"></legend>
+                    <div class="alert">
+                        <a class="btn btn-primary text-white rounded px-3" id="lwPhonePayBtn" data-show-processing="true">{{  __tr('Proceed To Pay') }}</a>
+                    </div>
+                </fieldset>
+                <div class="alert">
+                    <a class="lw-ajax-link-action btn btn-danger" data-show-processing="true" data-method="post" href="{{ route('vendor.subscription_manual_pay.delete_request') }}">{{  __tr('Cancel Request') }}</a>
+                </div>
             @else
             <div class="card-body">
                <div class="col-sm-12 col-lg-8 offset-lg-2">
@@ -194,6 +204,10 @@ $paymentMethod = $subscriptionRequestRecord->__data['manual_txn_details']['selec
 @if(!$checkPlanUsages)
 {{-- include paystack blade --}}
 @include('subscription.manual-subscription.yoomoney-partial')
+@endif
+@if(!$checkPlanUsages)
+{{-- include phonepe blade --}}
+@include('subscription.manual-subscription.phonepe-partial')
 @endif
 
 

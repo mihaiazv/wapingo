@@ -33,7 +33,7 @@
                 @endphp
                 @isset($templateComponent['example'])
                 @php
-                $headerTextItems = $templateComponent['example']['header_text'];
+                $headerTextItems = $templateComponent['example']['header_text'] ?? [];
                 $exampleHeaderTextItemIndex = 1;
                 foreach ($headerTextItems as $headerTextItem) {
                     $exampleHeaderItems["{{{$exampleHeaderTextItemIndex}}}"] = $headerItemValues['text'][$exampleHeaderTextItemIndex-1] ?? '';

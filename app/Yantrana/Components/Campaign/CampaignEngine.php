@@ -264,7 +264,7 @@ class CampaignEngine extends BaseEngine implements CampaignEngineInterface
         $totalFailed = $queueFailedCount + $messageLog->where('status', 'failed')->count();
         $totalFailedInPercent = round($totalFailed / $totalContacts * 100, 2) . '%';
         $totalExpiredInPercent = round($expiredCount / $totalContacts * 100, 2) . '%';
-        $totalSent = $messageLog->where('status', 'sent')->count();        
+        $totalSent = $messageLog->where('status', 'sent')->count();
         $totalSentInPercent = round($totalSent / $totalContacts * 100, 2) . '%';
         $inQueueCount = $queueMessages->where('status', 1)->count();
         $totalInQueueInPercent = round($inQueueCount / $totalContacts * 100, 2) . '%';
@@ -293,12 +293,26 @@ class CampaignEngine extends BaseEngine implements CampaignEngineInterface
             'acceptedCount' => $acceptedCount,
             'totalAcceptedInPercent' => __tr($totalAcceptedInPercent)
         ]);
-        // if record found
+        $executedMessageStatusCodes = [
+            'all' => __tr('All'),
+            'accepted' => __tr('Accepted'),
+            'failed' => __tr('Failed'),
+            'sent' => __tr('Sent'),
+            'delivered' => __tr('Delivered'),
+            'read' => __tr('Read')
+        ];
+        // release more memory
+        unset($campaign,$queueMessages,$messageLog);
         return $this->engineSuccessResponse([
-            'campaign' => $campaign,
+            'campaign' => $this->campaignRepository->fetchIt([
+                '_uid' => $campaignIdOrUid,
+                'vendors__id' => getVendorId()
+            ]),
             'statusText' => $statusText,
             'campaignStatus' => $campaignStatus,
             'queueFailedCount' => $queueFailedCount,
+            'messageQueueStatusCodes' => Arr::except(configItem('message_queue_status_codes'), [5]), // Expired
+            'executedMessageStatusCodes' => $executedMessageStatusCodes
         ]);
     }
     /**
@@ -307,12 +321,12 @@ class CampaignEngine extends BaseEngine implements CampaignEngineInterface
      * @param  mix  $campaignIdOrUid
      * @return object
      *---------------------------------------------------------------- */
-    public function prepareCampaignQueueLogList($campaignIdOrUid)
+    public function prepareCampaignQueueLogList($campaignIdOrUid, $logStatus)
     {
         // data fetch request
         $campaign = $this->campaignRepository->fetchIt($campaignIdOrUid);
         // data fetch request
-        $campaignCollection = $this->campaignRepository->fetchCampaignQueueLogTableSource($campaign->_id);
+        $campaignCollection = $this->campaignRepository->fetchCampaignQueueLogTableSource($campaign->_id, $logStatus);
         $isDemoModeAndAccount = isThisDemoVendorAccountAccess();
         $formattedStatus = configItem('message_queue_status_codes');
         $requireColumns = [
@@ -348,13 +362,13 @@ class CampaignEngine extends BaseEngine implements CampaignEngineInterface
      * @param  mix  $campaignIdOrUid
      * @return object
      *---------------------------------------------------------------- */
-    public function prepareCampaignExecutedLogList($campaignIdOrUid)
+    public function prepareCampaignExecutedLogList($campaignIdOrUid, $logStatus)
     {
         // data fetch request
         $campaign = $this->campaignRepository->fetchIt($campaignIdOrUid);
         abortIf(__isEmpty($campaign));
         // data fetch request
-        $campaignCollection = $this->campaignRepository->fetchCampaignExecutedLogTableSource($campaign->_id);
+        $campaignCollection = $this->campaignRepository->fetchCampaignExecutedLogTableSource($campaign->_id, $logStatus);
         $isDemoModeAndAccount = isThisDemoVendorAccountAccess();
         $requireColumns = [
             '_id',

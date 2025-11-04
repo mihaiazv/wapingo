@@ -259,13 +259,21 @@ class ConfigurationController extends BaseController
         $isChargesPresent = 0;
 
         if (! __isEmpty($planCharges)) {
+            $enableRazorpaySubscription = getAppSettings('enable_razorpay_subscription');
+            $enableStripe = getAppSettings('enable_stripe');
             foreach ($planCharges as $chargeKey => $chargeItem) {
                 if ($request->{$chargeKey.'_enabled'}) {
                     $isChargesPresent++;
                     $validationRules[$chargeKey.'_enabled'] = [
                         Rule::in(['on', 1]),
                     ];
-                    $validationRules[$chargeKey.'_plan_price_id'] = 'nullable|starts_with:price_';
+
+                    if ($enableRazorpaySubscription) {
+                        $validationRules[$chargeKey.'_plan_price_id'] = 'nullable';
+                    } elseif ($enableStripe) {
+                        $validationRules[$chargeKey.'_plan_price_id'] = 'nullable';
+                    }
+                    
                     $validationRules[$chargeKey.'_charge'] = 'numeric|min:0.1';
                 }
             }

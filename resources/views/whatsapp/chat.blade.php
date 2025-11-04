@@ -22,11 +22,11 @@
             @endif
             <div id="lwWhatsAppChatWindow"
                 class="card-body lw-whatsapp-chat-window p-sm-4" x-init="$watch('messagePaginatePage', function(value) {window.messagePaginatePage = value;});$watch('contactsPaginatePage', function(value) {window.contactsPaginatePage = value; });" :data-paginate-page="messagePaginatePage" :data-unread-only="showUnreadContactsOnly" :data-search-value="search" :data-contact-uid="contact?._uid">
-                <div class="row" x-cloak x-data="{isContactListOpened:false,isContactCrmBlockOpened:false}">
+                <div class="row" x-cloak x-data="{isContactListOpened:true,isContactCrmBlockOpened:false}">
                     <div class="col-sm-12 col-md-3 col-lg-3 col-xl-3 mb-4 lw-contact-list-block" x-show="isContactListOpened">
                         <h1>{{  __tr('WhatsApp Chat') }}</h1>
                         <hr class="my-2">
-                        <h2 class="lw-contacts-header"> <span class="btn btn-light btn-sm float-right d-md-none" @click.prevent="isContactListOpened = false"><i class="fa fa-arrow-left"></i></span>  <abbr class="float-right" title="{{  __tr('Once you get the response by the contact, they will be come in the chat list of this chat window, alternatively you can click on chat button of the contact list to chat with the contact.') }}">?</abbr></h2>
+                        <h2 class="lw-contacts-header"> <span class="btn btn-light btn-sm float-right d-md-none" @click.prevent="isContactListOpened = false"><i class="fa fa-arrow-left"></i> {{  __tr('Back to Chat') }}</span>  <abbr class="float-right" title="{{  __tr('Once you get the response by the contact, they will be come in the chat list of this chat window, alternatively you can click on chat button of the contact list to chat with the contact.') }}">?</abbr></h2>
                         <div class="form-group m-0"><label for="lwShowUnreadOnlyContacts"><input data-lw-plugin="lwSwitchery" data-color="orange" data-size="small" x-model="showUnreadContactsOnly" x-init="$watch('showUnreadContactsOnly', function(value) {
                             window.showUnreadContactsOnly = value;
                             _.defer(function() {
@@ -78,8 +78,8 @@
                             </div>
                           </nav>
                           <div class="tab-content lw-contact-list-header" id="nav-tabContent" x-cloak>
-                            <div class="tab-pane fade show active" id="lwAllContactsTab" role="tabpanel" aria-labelledby="lw-all-contacts-tab" x-data="{isExpandedLabels:false}">
-                                <fieldset class="py-0">
+                            <div class="tab-pane fade show active pl-2" id="lwAllContactsTab" role="tabpanel" aria-labelledby="lw-all-contacts-tab" x-data="{isExpandedLabels:false}">
+                                <fieldset class="py-0 lw-labels-filter-fieldset">
                                     <legend class="py-0"><small>
                                         {{  __tr('Filter by labels') }}
                                        <sup>
@@ -132,7 +132,7 @@
                                             <h3>
                                                 <span x-show="contactItem.full_name" x-text="contactItem.full_name"></span>
                                                 <span x-show="contactItem.full_name"> - </span>
-                                                <span x-text="contactItem.wa_id"></span>
+                                                <span x-text="__Utils.formatAsLocaleNumber(Number(contactItem.wa_id))"></span>
                                             </h3>
                                         </div>
                                     </div>
@@ -178,7 +178,7 @@
                                                         <span x-text="contact.name_initials"></span>
                                                     </div>
                                                     <div class="name">
-                                                        <span><span x-text="contact.full_name"></span><small> - <a target="_blank" x-bind:href="'https://api.whatsapp.com/send?phone=' + contact.wa_id" x-text="contact.wa_id"></a></small></span>
+                                                        <span><span x-text="contact.full_name"></span><small> - <a target="_blank" x-bind:href="'https://api.whatsapp.com/send?phone=' + contact.wa_id" x-text="__Utils.formatAsLocaleNumber(Number(contact.wa_id))"></a></small></span>
                                                         <template x-if="isDirectMessageDeliveryWindowOpened">
                                                             <span class="status text-success " x-text="directMessageDeliveryWindowOpenedTillMessage"></span>
                                                         </template>
@@ -189,6 +189,9 @@
                                                     
                                                     <template x-if="contact">
                                                     <div class="actions more lw-user-new-actions" x-data="{isAiChatBotEnabled:!contact.disable_ai_bot}" x-cloak>
+                                                        {{-- Whatsapp call button --}}
+                                                        @stack('whatsappCallButton')
+                                                        {{-- Whatsapp call button --}}
                                                         <a href="#" class="lw-whatsapp-bar-icon-btn" data-toggle="dropdown" aria-expanded="false">
                                                             <i class="fas fa-ellipsis-v text-white"></i>
                                                         </a>
@@ -347,12 +350,11 @@
                                                                     </template>
                                                                     <template x-if="whatsappMessageLogItem.is_system_message">
                                                                         <div>
-                                                                            <div class="text-center align-content-center lw-system-message-container">
-                                                                                <span class="badge rounded-pill text-bg-secondary text-capitalize" x-text="whatsappMessageLogItem.formatted_updated_time"></span>
-                                                                            </div>
-                                                                            
-                                                                            <div class="alert text-center align-content-center lw-chat-history-container">
-                                                                                <div class="lw-chat-history-message" x-text="whatsappMessageLogItem.message"></div>
+                                                                            <div class="text-center align-content-center lw-system-message-container p-2">
+                                                                                <div class="text-center align-content-center lw-chat-history-container">
+                                                                                    <div class="lw-chat-history-message mb-1" x-text="whatsappMessageLogItem.message"></div>
+                                                                                </div>
+                                                                                <small><small class="small text-muted mt-2" x-text="whatsappMessageLogItem.formatted_updated_time"></small></small>
                                                                             </div>
                                                                         </div>
                                                                     </template>
@@ -383,51 +385,55 @@
                                                         <div class="emoji">
                                                         </div>
                                                         <textarea name="message_body" required class="input-msg lw-input-emoji" placeholder="{{ __tr('Type a message') }}" autocomplete="off" autofocus></textarea>
-                                                            <div class="photo dropup">
-                                                                <!-- Default dropup button -->
-                                                                <a href="#" class="lw-whatsapp-bar-icon-btn" data-toggle="dropdown" aria-expanded="false">
-                                                                    <i class=" fa fa-paperclip text-muted"></i>
-                                                                </a>
-                                                                <div class="dropdown-menu dropdown-menu-right">
+                                                        <template x-if="contact">
+                                                          <div class="photo">
+                                                        <a title="{!! __tr('Record & Send') !!}" class="lw-ajax-link-action lw-whatsapp-bar-icon-btn" href="#" data-toggle="modal" data-target="#lwSendRecording"><i class="fa fa-microphone text-muted"></i> </a>
+                                                          </div>
+                                                        </template>
+                                                        <div class="photo dropup">
+                                                            <!-- Default dropup button -->
+                                                            <a href="#" class="lw-whatsapp-bar-icon-btn" data-toggle="dropdown" aria-expanded="false">
+                                                                <i class=" fa fa-paperclip text-muted"></i>
+                                                            </a>
+                                                            <div class="dropdown-menu dropdown-menu-right">
 
                                                                 <!-- Quick Bot Reply -->
-                                                                 <template x-if="contact">
-                                                                <a title="{{ __tr('Quick Bot Reply') }}"
-                                                                    class="lw-ajax-link-action dropdown-item" data-response-template="#lwQuickReplyContentBody" x-bind:href="__Utils.apiURL('{{ route('vendor.bot_reply.read.all.active.bots', ['contactIdOrUid']) }}', { 'contactIdOrUid': contact._uid})"  data-toggle="modal" data-target="#lwQuickReply"><i class="fa fa-bolt text-muted"></i> {{ __tr('Quick Bot Reply') }}
-                                                                </a>
-                                                                 </template>
+                                                                <template x-if="contact">
+                                                                    <a title="{{ __tr('Quick Bot Reply') }}"
+                                                                        class="lw-ajax-link-action dropdown-item" data-response-template="#lwQuickReplyContentBody" x-bind:href="__Utils.apiURL('{{ route('vendor.bot_reply.read.all.active.bots', ['contactIdOrUid']) }}', { 'contactIdOrUid': contact._uid})"  data-toggle="modal" data-target="#lwQuickReply"><i class="fa fa-bolt text-muted"></i> {{ __tr('Quick Bot Reply') }}
+                                                                    </a>
+                                                                </template>
                                                                 <!-- /Quick Bot Reply -->
                                                                 
-                                                                    <a title="{{ __tr('Send Document') }}"
-                                                                class="lw-ajax-link-action dropdown-item" data-toggle="modal"
-                                                                data-response-template="#lwWhatsappAttachment"
-                                                                data-target="#lwMediaUploadAndSend"
-                                                                data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
-                                                                'mediaType' => 'document'
-                                                            ]) }}"><i class="fa fa-file text-muted"></i> {{ __tr('Send Document') }}</a>
-                                                            <a title="{{ __tr('Send Image') }}" class="lw-ajax-link-action dropdown-item"
-                                                            data-toggle="modal"
-                                                            data-response-template="#lwWhatsappAttachment"
-                                                            data-target="#lwMediaUploadAndSend"
-                                                            data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
-                                                            'mediaType' => 'image'
-                                                        ]) }}"><i class="fa fa-image text-muted"></i> {{ __tr('Send Image') }}</a>
-                                                        <a title="{{ __tr('Send Video') }}" class="lw-ajax-link-action dropdown-item"
-                                                        data-toggle="modal"
-                                                        data-response-template="#lwWhatsappAttachment"
-                                                        data-target="#lwMediaUploadAndSend"
-                                                        data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
-                                                        'mediaType' => 'video'
-                                                    ]) }}"><i class="fa fa-video text-muted"></i> {{ __tr('Send Video') }}</a>
-                                                    <a title="{{ __tr('Send Audio') }}" class="lw-ajax-link-action dropdown-item"
-                                                    data-toggle="modal"
-                                                    data-response-template="#lwWhatsappAttachment"
-                                                    data-target="#lwMediaUploadAndSend"
-                                                    data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
-                                                    'mediaType' => 'audio'
-                                                ]) }}"><i class="fa fa-headphones text-muted"></i> {{ __tr('Send Audio') }}</a>
-                                                                </div>
+                                                                <a title="{{ __tr('Send Document') }}"
+                                                                    class="lw-ajax-link-action dropdown-item" data-toggle="modal"
+                                                                    data-response-template="#lwWhatsappAttachment"
+                                                                    data-target="#lwMediaUploadAndSend"
+                                                                    data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
+                                                                    'mediaType' => 'document' ]) }}"><i class="fa fa-file text-muted"></i> {{ __tr('Send Document') }}
+                                                                </a>
+                                                                <a title="{{ __tr('Send Image') }}" class="lw-ajax-link-action dropdown-item"
+                                                                    data-toggle="modal"
+                                                                    data-response-template="#lwWhatsappAttachment"
+                                                                    data-target="#lwMediaUploadAndSend"
+                                                                    data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', ['mediaType' => 'image']) }}"><i class="fa fa-image text-muted"></i> {{ __tr('Send Image') }}
+                                                                </a>
+                                                                <a title="{{ __tr('Send Video') }}" class="lw-ajax-link-action dropdown-item"
+                                                                    data-toggle="modal"
+                                                                    data-response-template="#lwWhatsappAttachment"
+                                                                    data-target="#lwMediaUploadAndSend"
+                                                                    data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
+                                                                    'mediaType' => 'video']) }}"><i class="fa fa-video text-muted"></i> {{ __tr('Send Video') }}
+                                                                </a>
+                                                                <a title="{{ __tr('Send Audio') }}" class="lw-ajax-link-action dropdown-item"
+                                                                    data-toggle="modal"
+                                                                    data-response-template="#lwWhatsappAttachment"
+                                                                    data-target="#lwMediaUploadAndSend"
+                                                                    data-callback="appFuncs.prepareUpload" href="{{ route('vendor.chat_message_media.upload.prepare', [
+                                                                    'mediaType' => 'audio']) }}"><i class="fa fa-headphones text-muted"></i> {{ __tr('Send Audio') }}
+                                                                </a>
                                                             </div>
+                                                        </div>
                                                         <button class="send" type="submit">
                                                             <div class="circle pl-2">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" width="1.5em"
@@ -468,7 +474,7 @@
                                             <dt>{{  __tr('Name') }}</dt>
                                             <dd x-text="contact.full_name"></dd>
                                             <dt>{{  __tr('Phone') }}</dt>
-                                            <dd x-text="contact.wa_id"></dd>
+                                            <dd x-text="__Utils.formatAsLocaleNumber(Number(contact.wa_id))"></dd>
                                             <dt>{{  __tr('Email') }}</dt>
                                             <dd x-text="contact.email ? contact.email : '-'"></dd>
                                             <dt>{{  __tr('Language') }}</dt>
@@ -628,6 +634,7 @@
  <!-- Edit Contact Modal -->
  @include('contact.contact-edit-modal-partial')
  @include('whatsapp.quick-reply-modal')
+ @include('whatsapp.recording-modal')
  <!--/ Edit Contact Modal -->
  {{-- Manage labels Modal --}}
  <x-lw.modal id="lwManageContactLabels" :header="__tr('Manage Labels')" :hasForm="true">
@@ -653,7 +660,7 @@
                     <ul class="list-group">
                         <template x-for="labelItem in allLabels">
                             <li x-bind:class="'lw-contact-label-'+labelItem._uid" class="list-group-item lw-list-group-border" >
-                                <x-lw.form data-callback="onUpdateContactDetails" class="w-100" :action="route('vendor.chat.label.update.write')">
+                                <x-lw.form data-callback="onUpdateContactDetails" class="w-100" :action="route('vendor.chat.label.update.write')" class="lw-contact-label-edit-form">
                                     <div class="row">
                                         <input type="hidden" name="labelUid" x-bind:value="labelItem._uid" />
                                         <x-lw.input-field type="text" data-form-group-class="col-12" :label="__tr('Edit Label')"  name="title" x-bind:value="labelItem.title" required="true">
@@ -834,7 +841,7 @@
             }
         }
     }
-});
+}); 
 })(jQuery);
 </script>
 @endpush

@@ -72,7 +72,9 @@ class WhatsAppMessageLogRepository extends BaseRepository implements WhatsAppMes
         } else  {
             $findTheExistingLogEntry['wamid'] = $messageWamid;
         }
+        
         $messageLogModel = $this->fetchIt($findTheExistingLogEntry);
+        
         // may the message deleted from db but webhook is received for delivery or read receipt
         // in such a case no need to record the action
         if (__isEmpty($messageLogModel) and $preventCreation) {
@@ -80,7 +82,7 @@ class WhatsAppMessageLogRepository extends BaseRepository implements WhatsAppMes
         }
         $dataToUpdate = [
             // 'status' => $messageStatus,
-            'is_incoming_message' => 0,
+            'is_incoming_message' => (data_get($options, 'is_incoming_message') == true) ? 1 : 0,
         ];
         if(!__isEmpty($messageLogModel)) {
             if($messageLogModel->status != 'read') {
@@ -156,7 +158,7 @@ class WhatsAppMessageLogRepository extends BaseRepository implements WhatsAppMes
         if (! empty($otherMessageData)) {
             $additionalData['other_message_data'] = $otherMessageData;
         }
-
+        
         return $this->storeIt([
             'wab_phone_number_id' => $phoneNumberId,
             'contact_wa_id' => $messageRecipientId,

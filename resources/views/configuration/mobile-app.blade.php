@@ -7,7 +7,7 @@
 ])
 
 @php
-$isDemoMode = (isDemo() and (hasCentralAccess() and (getUserID() != 1)));
+$isDemoMode = isDemo();
 $demoContent = 'XXXXXXXXXXXXX MASKED FOR DEMO XXXXXXXXXXXXX';
 @endphp
 

@@ -11,13 +11,13 @@ use App\Yantrana\Components\WhatsAppService\Models\WhatsAppWebhookModel;
 
 class ProcessWhatsAppWebhooks extends Command
 {
-    protected $signature = 'whatsapp:webhooks:process {webhooksCount=25}';
+    protected $signature = 'whatsapp:webhooks:process {webhooksCount=100}';
     protected $description = 'Process pending webhooks';
     public function handle()
     {
-        $webhooksCount = $this->argument('webhooksCount') ?: 25;
+        $webhooksCount = $this->argument('webhooksCount') ?: 100;
         WhatsAppWebhookModel::where('status', 'pending')
-            ->oldest()
+            ->latest()
             ->limit($webhooksCount)
             ->get()
             ->each(function ($webhook) {
@@ -35,12 +35,17 @@ class ProcessWhatsAppWebhooks extends Command
                     app()->make(WhatsAppServiceEngine::class)->processWebhookRequest($request, $webhook->vendors__id);
                     $webhook->delete();
                 } catch (\Throwable $e) {
-                    // __logDebug($e->getMessage());
+                    $errorMessage = trim($e->getMessage());
+                    //__logDebug($errorMessage);
                     // throw $e;
-                    $webhook->update([
-                        'status' => 'pending',
-                        'attempted_at' => now(),
-                    ]);
+                    if (str_starts_with($errorMessage, 'Unsupported')) {
+                        $webhook->delete();
+                    } else {
+                        $webhook->update([
+                            'status' => 'pending',
+                            'attempted_at' => now(),
+                        ]);
+                    }
                 }
             });
     }

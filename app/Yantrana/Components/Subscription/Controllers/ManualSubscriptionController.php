@@ -206,6 +206,7 @@ class ManualSubscriptionController extends BaseController
                     'razorpay',
                     'paystack',
                     'yoomoney',
+                    'phonepe'
                 ])
             ],
         ]);
@@ -415,7 +416,7 @@ class ManualSubscriptionController extends BaseController
       
      }
 
-        /**
+    /**
      * Handle YooMoney Payment Webhook
      *
      * @return json object
@@ -426,5 +427,17 @@ class ManualSubscriptionController extends BaseController
         return $this->manualSubscriptionEngine->handleOrderPaymentYoomoneyWebhook();
     }
 
-
+    /**
+     * Phone Pe capture payment
+     *
+     * @param   object  $request
+     *
+     * @return  json   object
+     */
+    public function phonePeCapturePayment(BaseRequest $request)
+    {
+        $processReaction = $this->manualSubscriptionEngine->processPhonePeCapturePayment($request->all());
+        // Send response
+        return $this->processResponse($processReaction, [], [], true);
+    }
 }

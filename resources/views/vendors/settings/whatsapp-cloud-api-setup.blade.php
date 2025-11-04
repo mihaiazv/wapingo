@@ -7,9 +7,27 @@
         'YELLOW' => __tr('Yellow - Medium quality'),
         'RED' => __tr('Red - Low quality'),
     ];
+    $messagingLimits = [
+        'TIER_50' => __tr('50 Customers / 24hr'),
+        'TIER_250' => __tr('250 Customers / 24hr'),
+        'TIER_1K' => __tr('1K Customers / 24hr'),
+        'TIER_10K' => __tr('10K Customers / 24hr'),
+        'TIER_100K' => __tr('100K Customers / 24hr'),
+        'TIER_UNLIMITED' => __tr('Unlimited'),
+    ];
+    $allowedWebhooks = [
+        getViaSharedUrl(route('vendor.whatsapp_webhook', [
+            'vendorUid' => getVendorUid(),
+        ])),
+        getViaSharedUrl(route('vendor.whatsapp_webhook', [
+            'vendorUid' => 'service-whatsapp',
+        ])),
+    ]
 @endphp
 <script>
     var phoneNumbersQualityRatings = @json($phoneQualityRatings);
+    var phoneNumbersMessagingLimits = @json($messagingLimits);
+    var allowedWebhooks = @json($allowedWebhooks);
 </script>
 <div class="row">
     <div class="col-md-8"
@@ -46,6 +64,11 @@
                 @if (getAppSettings('enable_embedded_signup') and !$embeddedSignupDoneAt and !getVendorSettings('facebook_app_id'))
                 <fieldset x-show="!isSetupInProcess">
                     <legend>{{ __tr('WhatsApp Setup with Facebook') }}</legend>
+                    @if(isDemo())
+                        <div class="alert alert-warning my-3">
+                            <?= __tr('To use Embedded Signup you need to have an Embedded Signup Addon.') ?>
+                        </div>
+                    @endif
                     <div class="text-center">
                         @if (!isWhatsAppBusinessAccountReady())
                         <button type="button"
@@ -413,13 +436,16 @@
                     <div class="card shadow-none border-0">
                         <template x-for="whatsAppPhoneNumber in whatsAppPhoneNumbers">
                         <div class="card-header">
+                            @stack('whatsappPhoneNumberStack')
                             <dl>
                                 <dt>{{ __tr('Phone Number ID') }}</dt>
                                 <dd x-text="whatsAppPhoneNumber.id"></dd>
                                 <dt>{{ __tr('Verified Name') }}</dt>
                                 <dd x-text="whatsAppPhoneNumber.verified_name"></dd>
-                             {{--    <dt>{{ __tr('Code Verification Status') }}</dt>
-                                <dd x-text="whatsAppPhoneNumber.code_verification_status"></dd> --}}
+                                <dt x-show="whatsAppPhoneNumber.phone_status_info?.status">{{ __tr('Status') }}</dt>
+                                <dd x-show="whatsAppPhoneNumber.phone_status_info?.status" x-bind:class="whatsAppPhoneNumber.phone_status_info?.status == 'CONNECTED' ? 'text-success' : 'text-warning'" x-text="whatsAppPhoneNumber.phone_status_info?.status"></dd>
+                                <dt x-show="whatsAppPhoneNumber.phone_status_info?.messaging_limit_tier">{{ __tr('Messaging Limit') }}</dt>
+                                <dd x-show="whatsAppPhoneNumber.phone_status_info?.messaging_limit_tier" x-text="phoneNumbersMessagingLimits[whatsAppPhoneNumber.phone_status_info?.messaging_limit_tier]"></dd>
                                 <dt>{{ __tr('Display Phone Number') }}</dt>
                                 <dd x-text="whatsAppPhoneNumber.display_phone_number"></dd>
                                 <dt>{{ __tr('Quality Rating') }} <a class="btn btn-sm btn-link" href="https://www.facebook.com/business/help/896873687365001" target="_blank" rel="noopener noreferrer"><i class="fa fa-external-link-alt"></i></a></dt>
@@ -428,9 +454,25 @@
                                 <dd x-show="whatsAppPhoneNumber?.name_status" x-text="whatsAppPhoneNumber?.name_status"></dd>
                                 <dt x-show="whatsAppPhoneNumber?.new_name_status">{{ __tr('New Name Status') }}</dt>
                                 <dd x-show="whatsAppPhoneNumber?.new_name_status" x-text="whatsAppPhoneNumber?.new_name_status"></dd>
+                                <div class="alert p-0" x-data="{webhookIssues:[]}" x-init="if(!_.includes(allowedWebhooks, whatsAppPhoneNumber.webhook_configuration?.application)) {
+                                    @if (!$embeddedSignupDoneAt)
+                                        webhookIssues.push('application');
+                                    @endif
+                                } else if (whatsAppPhoneNumber.webhook_configuration?.whatsapp_business_account && !_.includes(allowedWebhooks, whatsAppPhoneNumber.webhook_configuration?.whatsapp_business_account)) { webhookIssues.push('application'); } else if (whatsAppPhoneNumber.webhook_configuration?.phone_number && !_.includes(allowedWebhooks, whatsAppPhoneNumber.webhook_configuration?.phone_number)) { webhookIssues.push('phone_number'); } else { @if ($embeddedSignupDoneAt)  if(!whatsAppPhoneNumber.webhook_configuration?.whatsapp_business_account) {
+                                    webhookIssues.push('whatsapp_business_account');
+                                } @endif }">
+                                <template x-if="webhookIssues.length">
+                                    <div class="alert alert-danger p-2">
+                                        <dt>{{ __tr('Webhook Status Errors if any') }}</dt>
+                                        <dd>{{  __tr('There are issues with webhook it may impact incoming messages and statues.') }}</dd>
+                                        <dd><a href="{{ route('vendor.webhook.connect.write') }}" data-method="post" class="btn btn-dark btn-sm lw-ajax-link-action">{{  __tr('Reconnect Webhook') }}</a></dd>
+                                    </div>
+                                </template>
+                                </div>
                                  @if (!$isWhatsAppBusinessMobileAppOnboarded)
                                 <dd>
                                     <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update Display Name') }}" class="lw-btn btn btn-sm btn-outline-default lw-ajax-link-action" data-response-template="#lwDisplayNameUpdateBody" x-bind:href="__Utils.apiURL('{{ route('vendor.whatsapp.display_name.read', [ 'phoneNUmberId']) }}', {'phoneNUmberId': whatsAppPhoneNumber.id})"  data-toggle="modal" data-target="#lwDisplayNameUpdate"><i class="fa fa-edit"></i> {{  __tr('Update Display Name') }}</a>
+                                    <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Register Phone Number') }}" class="lw-btn btn btn-sm btn-outline-default lw-ajax-link-action" data-response-template="#lwRegisterPhoneNumberBody" x-bind:href="__Utils.apiURL('{{ route('vendor.whatsapp.business_profile.read', [ 'phoneNUmberId']) }}', {'phoneNUmberId': whatsAppPhoneNumber.id})"  data-toggle="modal" data-target="#lwRegisterPhoneNumber"><i class="fa fa-edit"></i> {{  __tr('Register Phone Number') }}</a>
                                     <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update Business Profile') }}" class="lw-btn btn btn-sm btn-outline-default lw-ajax-link-action" data-response-template="#lwBusinessProfileUpdateBody" x-bind:href="__Utils.apiURL('{{ route('vendor.whatsapp.business_profile.read', [ 'phoneNUmberId']) }}', {'phoneNUmberId': whatsAppPhoneNumber.id})"  data-toggle="modal" data-target="#lwBusinessProfileUpdate"><i class="fa fa-edit"></i> {{  __tr('Update Business Profile') }}</a>
                                     <a data-pre-callback="appFuncs.clearContainer" data-response-template="#lwTwoSepVerificationCodeBody" x-bind:href="__Utils.apiURL('{{ route('vendor.whatsapp.business_profile.read', [ 'phoneNUmberId']) }}', {'phoneNUmberId': whatsAppPhoneNumber.id})"  title="{{  __tr('Two-Step Verification Code') }}" class="lw-btn btn btn-sm btn-outline-default lw-ajax-link-action" data-toggle="modal" data-target="#lwTwoSepVerificationCode"><i class="fa fa-edit"></i> {{  __tr('Update Two-Step Verification Code') }}</a>
                                 </dd>
@@ -537,7 +579,7 @@
       appId            : '{{ getAppSettings('embedded_signup_app_id') }}',
       autoLogAppEvents : true,
       xfbml:    true, // parse social plugins on this page
-      version          : 'v23.0'
+      version          : 'v24.0'
     });
   };
   })();
@@ -622,7 +664,7 @@
 };
 
 window.addEventListener('message', sessionInfoListener);
-  }
+  };
   })();
 </script>
 @endif

@@ -107,8 +107,11 @@ return [
                     'audio/mpeg',
                     'audio/amr',
                     'audio/ogg',
+                    'video/mp4',
+                    'audio/webm',
+                    'video/webm'
                 ],
-                'allowedFileExtensions' => ['aac', 'm4a', 'mp4', 'mp3', 'mpga', 'amr', 'ogg', 'oga'],
+                'allowedFileExtensions' => ['aac', 'm4a', 'mp4', 'mp3', 'mpga', 'amr', 'ogg', 'oga', 'webm'],
             ],
         ],
         'whatsapp_document' => [

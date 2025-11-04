@@ -52,6 +52,11 @@ Route::group([
         WhatsAppServiceController::class,
         'apiSendTemplateChatMessage',
     ])->name('api.vendor.chat_template_message.send.process');
+    // Send carousel template message
+    Route::post('/contact/send-carousel-template-message', [
+        WhatsAppServiceController::class,
+        'apiSendTemplateChatMessage',
+    ])->name('api.vendor.chat_carousel_template_message.send.process');
     // send interactive message
     Route::post('/contact/send-interactive-message', [
         WhatsAppServiceController::class,
@@ -72,6 +77,16 @@ Route::group([
         ContactController::class,
         'apiAssignTeamMemberToContact',
     ])->name('api.vendor.contact.assign_member.update.process');
+    // get contact list
+    Route::get('contacts', [
+        ContactController::class,
+        'apiGetContactList',
+    ])->name('api.vendor.contact.read.list');
+    // get contact by phone number or email
+    Route::get('contact', [
+        ContactController::class,
+        'apiGetContact',
+    ])->name('api.vendor.contact.read.single_contact');
 });
 
 // Mobile app apis
@@ -109,6 +124,11 @@ Route::group(['middleware' => 'guest'], function () {
             'processSignUp'
         ])->name('api.user.sign_up.process');
        
+        // Verify 2-Factor Authentication
+        Route::post('/two-factor-challenge', [
+            AuthController::class,
+            'verifyTwoFactorAuthentication'
+        ])->name('api.two_factor_authentication.verify');
     });
 });
 // vendor authenticated routes
@@ -212,6 +232,7 @@ Route::group([
         ])->name('app_api.vendor.chat.label.delete.write');
            
     });
+
     // logout
     Route::post('/user/logout', [
         ApiUserController::class,

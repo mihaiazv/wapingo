@@ -21,7 +21,7 @@ $currentAppTheme ='';
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title> {{ (isset($title) and $title) ? $title : __tr('Welcome') }} - {{ getAppSettings('name') }}</title>
 
@@ -196,6 +196,11 @@ $currentAppTheme ='';
             <source src="<?= asset('/static-assets/audio/whatsapp-notification-tone.mp3'); ?>" type="audio/mpeg">
         </audio>
     </template>
+
+    {{-- Global View Stack --}}
+    @stack('globalViewsStack')
+    {{-- /Global View Stack --}}
+
     @endif
     <script>
         (function($) {
@@ -379,6 +384,12 @@ $currentAppTheme ='';
                         };
                     }, 10000);
                 @endif
+                // stack for to process data whenever the vendor channel broadcasts through Pusher or Socket
+                @stack('vendorChannelBroadcastStack')
+                // Check if data reload event fired, if yes then reload page
+                if (data.reload) {
+                    location.reload();
+                }
             });
         @if(hasVendorAccess('messaging'))
         // initially get the unread count on page loads

@@ -1622,3 +1622,114 @@ body:not(.lw-minimized-menu) {
     }
 }
 /* Carousel Related Css here */
+
+.lw-force-hide {
+    display: none !important;
+}
+.lw-recording-container {
+    // background-color: white; 
+    padding: 2rem; 
+    border-radius: 8px; 
+    // box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+    // max-width: 500px; margin: auto; 
+}
+button.lw-start-recording-button,
+button.lw-stop-recording-button { 
+    // width: 70px !important;; 
+    // height:70px;
+    height: 150px;
+    width: 150px!important;
+    border-radius: 50%;
+}
+.lw-recording-message { 
+    margin-top: 1rem; 
+    color: #666; 
+}
+.lw-recorded-audio { 
+    margin-top: 20px; 
+    width: 100%; 
+}
+.lw-recorder-counter {
+    margin-left: 10px;
+    font-weight: bold;
+}
+
+.lw-whatsapp-calling-chat-box {
+      max-width: 400px;
+      margin: auto;
+    }
+
+    .lw-whatsapp-call-message {
+      display: inline-flex;
+      align-items: center;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin: 5px 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .lw-whatsapp-call-message .icon {
+      font-size: 16px;
+      margin-right: 8px;
+    }
+
+    .lw-whatsapp-call-message.missed {
+      color: #f44336;
+    }
+
+    .lw-whatsapp-call-message.ended {
+      color: #555;
+    }
+
+    .lw-whatsapp-call-message-icon-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 8px;
+      background: #ece5dd; /* WhatsApp chat bg color */
+    }
+
+    .lw-whatsapp-call-message-icon-circle i {
+      font-size: 14px;
+    }
+    
+    .lw-rotate-whatsapp-phone-icon {
+        transform: rotate(226deg);
+    }
+
+    .selectize-control.lw-contact-filter-selectize {
+        padding: 0;
+        top: -35px;
+        height: 15px;
+        .has-options {
+            // height: 50px;
+            height: calc(3rem + 2px);
+            overflow-y: auto;
+        }
+    }
+
+    .lw-filter-message-hr {
+        border-top-color: #000000 !important;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .lw-filter-and-clear-btn-z-index {
+        z-index: 0 !important;
+    }
+
+    .lw-labels-filter-fieldset,.lw-contacts-header {
+        .btn {
+            width: auto;
+        }
+    }
+
+    .lw-contact-label-edit-form {
+        position: relative;
+        z-index: 0;
+    }

@@ -632,7 +632,6 @@
         padding: 2px;
     }
     .lw-chat-history-container {
-        background-color: #ebebeb;
         margin-top: 10px;
         margin-bottom: 5px;
         width: 90%;
@@ -647,16 +646,11 @@
     }
     }
     .lw-system-message-container {
-        background-color: #ebebeb;
+        background-color: rgba(255, 255, 255, 0.5);
         margin-top: 10px;
-        margin-bottom: -3px;
-        width: 28%;
-        border-radius: 40px;
-        margin-left: 36%;
-        .badge {
-            font-size: 66%;
-            font-weight: 410;
-            color: #000000;
+        border-radius: 8px;
+        .lw-chat-history-message {
+             color: #000000;
         }
     }
 }

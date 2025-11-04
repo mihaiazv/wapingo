@@ -1,5 +1,23 @@
+<?php $logStatus = request()->route('logStatus'); ?>
+<ul class="nav nav-tabs col-12 mb-3" id="myTab" role="tablist">
+    @if(!__isEmpty($messageQueueStatusCodes))
+        <li class="nav-item" role="presentation">
+            <a class="nav-link <?= ($logStatus == 'all' || __isEmpty($logStatus)) ? 'active' : '' ?>" href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'queue', 'logStatus' => 'all']) ?>#logData">
+                <?= __tr('All') ?>
+            </a>
+        </li>
+        @foreach($messageQueueStatusCodes as $queueStatusIndex => $queueStatusCode)
+            <li class="nav-item" role="presentation">
+                <a class="nav-link <?= ($logStatus == $queueStatusIndex) ? 'active' : '' ?>" href="<?= route('vendor.campaign.status.view', ['campaignUid' => $campaignUid, 'pageType' => 'queue', 'logStatus' => $queueStatusIndex]) ?>#logData">
+                    <?= $queueStatusCode ?>
+                </a>
+            </li>
+        @endforeach
+    @endif
+</ul>
+
 {{-- datatable queue log--}}
-<x-lw.datatable lw-card-classes="border-0" data-page-length="100" id="lwCampaignQueueLog" :url="route('vendor.campaign.queue.log.list.view', ['campaignUid' => $campaignUid])">
+<x-lw.datatable lw-card-classes="border-0" data-page-length="100" id="lwCampaignQueueLog" data-url="{{ route('vendor.campaign.queue.log.list.view', ['campaignUid' => $campaignUid, 'logStatus' => $logStatus])}}">
     <th data-orderable="true" data-name="full_name">{{ __tr('Name') }}</th>
     {{-- <th data-orderable="true" data-name="last_name">{{ __tr('Last Name') }}</th> --}}
     <th data-orderable="true" data-name="phone_with_country_code">{{ __tr('Phone Number') }}</th>

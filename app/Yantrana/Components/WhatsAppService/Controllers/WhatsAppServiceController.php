@@ -626,6 +626,7 @@ class WhatsAppServiceController extends BaseController
                     if (!$vendorId) {
                         return false;
                     }
+                    
                     // update configuration for webhook
                     $this->vendorSettingsEngine->updateProcess('whatsapp_cloud_api_setup', [
                         'webhook_verified_at' => now()
@@ -909,6 +910,27 @@ class WhatsAppServiceController extends BaseController
     }
 
     /**
+     * Register Phone Number
+     *
+     * @param BaseRequestTwo $request
+     * @return json
+     */
+    function registerPhoneNumber(BaseRequestTwo $request) {
+        validateVendorAccess('administrative');
+        $request->validate([
+            'pin' => [
+                'required',
+                'numeric',
+                'digits:6',
+            ],
+        ]);
+        // ask engine to process the request
+        $processReaction = $this->whatsAppServiceEngine->processRegisterPhoneNumber($request->all());
+        // get back to controller with engine response
+        return $this->processResponse($processReaction, [], [], true);
+    }
+
+    /**
      * Update Two Step Verification Plugin
      *
      * @param BaseRequestTwo $request
@@ -1009,6 +1031,4 @@ class WhatsAppServiceController extends BaseController
         // get back to controller with engine response
         return $this->processResponse($processReaction, [], [], true);
     }
-    
-
 }

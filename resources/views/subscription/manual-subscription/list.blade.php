@@ -77,6 +77,7 @@
             <x-lw.datatable data-page-length="100" id="lwManualSubscriptionList"
                 :url="route('central.subscription.manual_subscription.read.list')">
                 <th data-template="#manualSubscriptionVendorColumnTemplate" data-name="null">{{ __tr('Vendor') }}</th>
+                <th data-orderable="true" data-template="#autoSubscriptionColumnTemplate" data-name="is_auto_subscription">{{ __tr('Is Auto Recurring') }}</th>
                 <th data-orderable="true" data-name="plan_id">{{ __tr('Plan') }}</th>
                 <th data-order-by="true" data-order-type="desc" data-orderable="true" data-name="created_at">{{ __tr('Created At') }}</th>
                 <th data-orderable="true" data-name="ends_at">{{ __tr('Expiry At') }}</th>
@@ -85,6 +86,15 @@
                 <th data-template="#manualSubscriptionStatusColumnTemplate" data-name="null">{{ __tr('Status') }}</th>
                 <th data-template="#manualSubscriptionActionColumnTemplate" name="null">{{ __tr('Action') }}</th>
             </x-lw.datatable>
+
+            <script type="text/template" id="autoSubscriptionColumnTemplate">
+                <% if(__tData.is_auto_recurring) { %>
+                    <span class="badge badge-primary">{{  __tr('Yes') }}</span>
+                <% } else { %>
+                    <span class="badge badge-danger">{{  __tr('No') }}</span>
+                <% } %>
+            </script>
+
             <script type="text/template" id="manualSubscriptionStatusColumnTemplate">
                 <% if(__tData.status == 'Pending') { %>
                     <span class="badge badge-warning">{{  __tr('Pending') }}</span>
@@ -100,11 +110,13 @@
                     <!-- action template -->
         <script type="text/template" id="manualSubscriptionActionColumnTemplate">
             <a class="btn btn-primary btn-sm" href ="<%= __Utils.apiURL("{{ route('central.vendor.details',['vendorIdOrUid'=>'vendorIdOrUid'])}}", {'vendorIdOrUid':__tData.vendor_uid}) %>"> {{  __tr('Subscription') }} </a>
-            {{-- update expiry --}}
-            <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update') }}" class="lw-btn btn btn-sm btn-default lw-ajax-link-action" data-response-template="#lwEditManualSubscriptionBody" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.read.update.data', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>"  data-toggle="modal" data-target="#lwEditManualSubscription"><i class="fa fa-edit"></i> {{  __tr('Update') }}</a>
-<!--  Delete Action -->
-<a data-method="post" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.write.delete', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>" class="btn btn-danger btn-sm lw-ajax-link-action-via-confirm" data-confirm="#lwDeleteManualSubscription-template" title="{{ __tr('Delete') }}" data-callback-params="{{ json_encode(['datatableId' => '#lwManualSubscriptionList']) }}" data-callback="appFuncs.modelSuccessCallback"><i class="fa fa-trash"></i> {{  __tr('Delete') }}</a>
-    </script>
+            <% if(!__tData.is_auto_recurring) { %>
+                {{-- update expiry --}}
+                <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update') }}" class="lw-btn btn btn-sm btn-default lw-ajax-link-action" data-response-template="#lwEditManualSubscriptionBody" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.read.update.data', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>"  data-toggle="modal" data-target="#lwEditManualSubscription"><i class="fa fa-edit"></i> {{  __tr('Update') }}</a>
+                <!--  Delete Action -->
+                <a data-method="post" href="<%= __Utils.apiURL("{{ route('central.subscription.manual_subscription.write.delete', [ 'manualSubscriptionIdOrUid']) }}", {'manualSubscriptionIdOrUid': __tData._uid}) %>" class="btn btn-danger btn-sm lw-ajax-link-action-via-confirm" data-confirm="#lwDeleteManualSubscription-template" title="{{ __tr('Delete') }}" data-callback-params="{{ json_encode(['datatableId' => '#lwManualSubscriptionList']) }}" data-callback="appFuncs.modelSuccessCallback"><i class="fa fa-trash"></i> {{  __tr('Delete') }}</a>
+            <% } %>
+        </script>
         <!-- /action template -->
         <!-- Manual Subscription delete template -->
         <script type="text/template" id="lwDeleteManualSubscription-template">

@@ -143,7 +143,7 @@ class CampaignRepository extends BaseRepository implements CampaignRepositoryInt
      *
      * @return mixed
      *---------------------------------------------------------------- */
-    public function fetchCampaignQueueLogTableSource($campaignId)
+    public function fetchCampaignQueueLogTableSource($campaignId, $logStatus)
     {
         // basic configurations for dataTables data
         $dataTableConfig = [
@@ -168,8 +168,14 @@ class CampaignRepository extends BaseRepository implements CampaignRepositoryInt
                 'regex' => request()->search['regex'] ?? null
             ]
         ]);
+        
         // Get Model result for dataTables
         return WhatsAppMessageQueueModel::where('campaigns__id', $campaignId)
+        ->where(function($query) use ($logStatus) {
+            if ($logStatus != 'all') {
+                $query->where('status', $logStatus);
+            }
+        })
         ->whereNotIn('status', [5]) // Expired
         ->select(
             DB::raw(
@@ -190,7 +196,7 @@ class CampaignRepository extends BaseRepository implements CampaignRepositoryInt
     *
     * @return mixed
     *---------------------------------------------------------------- */
-    public function fetchCampaignExecutedLogTableSource($campaignId)
+    public function fetchCampaignExecutedLogTableSource($campaignId, $logStatus)
     {
         // basic configurations for dataTables data
         $dataTableConfig = [
@@ -215,6 +221,11 @@ class CampaignRepository extends BaseRepository implements CampaignRepositoryInt
         ]);
         // get Model result for dataTables
         return WhatsAppMessageLogModel::where('campaigns__id', $campaignId)
+        ->where(function($query) use ($logStatus) {
+            if ($logStatus != 'all') {
+                $query->where('status', $logStatus);
+            }
+        })
         ->select(
             DB::raw(
                 "*,

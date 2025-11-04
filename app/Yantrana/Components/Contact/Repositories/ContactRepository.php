@@ -49,7 +49,7 @@ class ContactRepository extends BaseRepository implements ContactRepositoryInter
      *
      * @return mixed
      *---------------------------------------------------------------- */
-    public function fetchContactDataTableSource($groupContactIds = null, $contactGroupUid = null)
+    public function fetchContactDataTableSource($groupContactIds = null, $contactGroupUid = null, $returnDTResponse = true)
     {
         // basic configurations for dataTables data
         $dataTableConfig = [
@@ -65,17 +65,15 @@ class ContactRepository extends BaseRepository implements ContactRepositoryInter
                 'email',
             ],
         ];
-
+        
         // get Model result for dataTables
         $query = $this->primaryModel::with([
             'groups' => function ($query) {
                 $query->distinct('_id');
             },
             'lastIncomingMessage'
-        ])
-        ->where([
-            'vendors__id' => getVendorId()
-        ]);
+        ])->where('vendors__id', getVendorId());
+        
         if ($contactGroupUid) {
             $query->whereIn('_id', $groupContactIds);
         }
@@ -83,7 +81,130 @@ class ContactRepository extends BaseRepository implements ContactRepositoryInter
         if (isThisDemoVendorAccountAccess()) {
             $query->whereIn('wa_id', getDemoNumbersForTest());
         }
-        return $query->dataTables($dataTableConfig)->toArray();
+
+        if (__isEmpty($groupContactIds) and __isEmpty($contactGroupUid)) {        
+            // Get contact filter data and if exists then apply filter
+            $filterData = session('contact-filter-data-'.getUserUID());
+            // Check if filter data exists
+            if ($filterData) {
+                $query->where(function($filterQuery) use($filterData) {
+                    // Check if first name exists
+                    if (!__isEmpty($filterData['first_name'] ?? null)) {
+                        $filterQuery->where('first_name', 'like', "%{$filterData['first_name']}%");
+                    }
+                    // Check if last name exists
+                    if (!__isEmpty($filterData['last_name'] ?? null)) {
+                        $filterQuery->where('last_name', 'like', "%{$filterData['last_name']}%");
+                    }
+                    // Check if country ids exists
+                    if (!__isEmpty(data_get($filterData, 'countries_id'))) {
+                        $filterQuery->whereIn('countries__id', $filterData['countries_id']);
+                    }
+                    // Check if phone number exists
+                    if (!__isEmpty($filterData['wa_id'] ?? null)) {
+                        $filterQuery->where('wa_id', 'like', "%{$filterData['wa_id']}%");
+                    }
+                    // Check if languages exists
+                    if (!__isEmpty(data_get($filterData, 'language_codes'))) {
+                        $languages = include app_path('Yantrana/Support/languages.php');
+                        $languageCodes = [];
+                        foreach ($filterData['language_codes'] as $langCode) {
+                            $languageCodes[] = data_get($languages, $langCode.'.code');
+                        }
+                        $filterQuery->whereIn('language_code', $languageCodes);
+                    }
+                    // Check if email exists
+                    if (!__isEmpty($filterData['email'] ?? null)) {
+                        $filterQuery->where('email', 'like', "%{$filterData['email']}%");
+                    }
+                    // Check if assigned user ids exists
+                    if (!__isEmpty(data_get($filterData, 'assigned_users_ids'))) {
+                        // Check if unassigned option selected
+                        if (in_array('null', $filterData['assigned_users_ids'])) {
+                            $filterQuery->whereNull('assigned_users__id');
+                        }
+                        // Remove null value from array
+                        $assignedUserIds = array_filter($filterData['assigned_users_ids'], function($item) {
+                            return $item != 'null';
+                        });
+                        // Only search by assigned user id
+                        if (!__isEmpty($assignedUserIds)) {
+                            $filterQuery->orWhereIn('assigned_users__id', $assignedUserIds);
+                        }
+                    }
+                    // Check if start date and end date exists
+                    if (!__isEmpty($filterData['msg_start_date'] ?? null) and !__isEmpty($filterData['msg_end_date'] ?? null)) {
+                        $filterQuery->whereBetween('created_at', [$filterData['msg_start_date'], $filterData['msg_end_date']]);
+                    }
+                    // Check if whatsapp opt out exists
+                    if (data_get($filterData, 'whatsapp_opt_out') == 'on') {
+                        $filterQuery->where('whatsapp_opt_out', 1);
+                    }
+                    // Check if enable ai bot exists
+                    if (data_get($filterData, 'enable_ai_bot') == 'on') {
+                        $filterQuery->where(function($subQuery) {
+                            $subQuery->whereNull('disable_ai_bot')
+                            ->orWhere('disable_ai_bot', 0);
+                        });
+                    }
+                    // Check if enable reply bot exists
+                    if (data_get($filterData, 'enable_reply_bot') == 'on') {
+                        $filterQuery->where(function($subQuery) {
+                            $subQuery->whereNull('disable_reply_bot')
+                            ->orWhere('disable_reply_bot', 0);
+                        });
+                    }
+                });
+                // Check group ids exists
+                if (!__isEmpty(data_get($filterData, 'group_ids'))) {
+                    $query->whereHas('groups', function ($q) use ($filterData) {
+                        $q->whereIn('contact_groups__id', $filterData['group_ids']);
+                    });
+                }
+                // Check filter by labels
+                if (!__isEmpty(data_get($filterData, 'contact_labels'))) {
+                    $query->whereHas('labels', function ($q) use($filterData) {
+                        $q->whereIn('labels__id', $filterData['contact_labels']);
+                    });
+                }
+                // Check if contacts whose WhatsApp 24-hour service window active or inactive
+                if (!__isEmpty(data_get($filterData, 'whatsapp_service_window')) 
+                    and data_get($filterData, 'whatsapp_service_window') != 'all') {
+                    $query->leftJoin(
+                        DB::raw('(
+                            SELECT contacts__id, MAX(messaged_at) as last_messaged_at
+                            FROM whatsapp_message_logs
+                            WHERE is_incoming_message = 1
+                            GROUP BY contacts__id
+                        ) as last_msg'),
+                        'contacts._id',
+                        '=',
+                        'last_msg.contacts__id'
+                    )
+                    ->when($filterData['whatsapp_service_window'] === 'active', function ($q) {
+                        $q->whereRaw("last_msg.last_messaged_at >= UTC_TIMESTAMP() - INTERVAL 24 HOUR");
+                    })
+                    ->when($filterData['whatsapp_service_window'] === 'inactive', function ($q) {
+                        $q->whereRaw("last_msg.last_messaged_at < UTC_TIMESTAMP() - INTERVAL 24 HOUR");
+                    });
+                }
+                // Check if filter by custom fields
+                if (!__isEmpty(data_get($filterData, 'custom_input_fields'))) {
+                    foreach ($filterData['custom_input_fields'] as $customInputFields) {
+                        $query->whereHas('valueWithField', function ($valueFieldQuery) use($customInputFields) {
+                            $valueFieldQuery->where('field_value', 'like', "%{$customInputFields}%");
+                        });
+                    }
+                }
+            }
+        }
+        // __dd($query->dataTables($dataTableConfig)->toArray());
+        if ($returnDTResponse) {
+            return $query->dataTables($dataTableConfig)->toArray();
+        } else {
+            return $query->get();
+        }
+        
     }
 
     /**
@@ -245,6 +366,8 @@ class ContactRepository extends BaseRepository implements ContactRepositoryInter
             $query->where('assigned_users__id', getUserID());
         } elseif ($assigned == 'unassigned') {
             $query->whereNull('assigned_users__id');
+        } elseif (is_numeric($assigned)) {
+            $query->where('assigned_users__id', $assigned);
         }
 
         if (!$contactUid) {
@@ -482,4 +605,29 @@ class ContactRepository extends BaseRepository implements ContactRepositoryInter
              'vendors__id' => $vendorId
         ])->whereNotIn('_uid', [$testContactUid])->delete();
     }
+
+    public function fetchContactListPaginatedData()
+    {
+        $paginateCount = request()->get('page_size') ?? 100;        
+        $searchTerm = request()->get('search_term');
+
+        return $this->primaryModel::where('vendors__id', getVendorId())->where(function ($q) use ($searchTerm) {
+            $q->where('first_name', 'like', "%{$searchTerm}%")
+            ->orWhere('last_name', 'like', "%{$searchTerm}%")
+            ->orWhere('wa_id', 'like', "%{$searchTerm}%")
+            ->orWhere('email', 'like', "%{$searchTerm}%");
+        })
+        ->withoutColumn(['__data'])
+        ->paginate($paginateCount);
+    } 
+
+    public function fetchContactByPhoneNumberOrEmail($phoneNumberOrEmail)
+    {
+        return $this->primaryModel::where('vendors__id', getVendorId())->where(function ($q) use ($phoneNumberOrEmail) {
+            $q->where('wa_id', $phoneNumberOrEmail)
+            ->orWhere('email', $phoneNumberOrEmail);
+        })
+        ->withoutColumn(['__data'])
+        ->first();
+    } 
 }

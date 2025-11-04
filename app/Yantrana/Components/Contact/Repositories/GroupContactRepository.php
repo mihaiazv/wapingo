@@ -50,6 +50,7 @@ class GroupContactRepository extends BaseRepository implements GroupContactRepos
             'contacts__id' => $contactId
         ])->deleteIt();
     }
+
     /**
      * Remove Selected contact  from assign group
      *
@@ -60,6 +61,29 @@ class GroupContactRepository extends BaseRepository implements GroupContactRepos
     function removeFromAssignedGroup($contactId,$groupId) {
         return $this->primaryModel::where('contact_groups__id', $groupId)->where([
             'contacts__id' => $contactId
+        ])->deleteIt();
+    }
+
+    /**
+     * Delete group contact by group Id
+     *
+     * @param array $groupId
+     * @return mixed
+     */
+    function deleteGroupContactByGroupId($groupId) {
+        return $this->primaryModel::where('contact_groups__id', $groupId)->deleteIt();
+    }
+
+    /**
+     * Delete Selected Assigned groups from contacts
+     *
+     * @param array $groupIds
+     * @param int $contactIds
+     * @return mixed
+     */
+    function removeGroupContacts($groupId, $contactIds) {
+        return $this->primaryModel::whereIn('contacts__id', $contactIds)->where([
+            'contact_groups__id' => $groupId
         ])->deleteIt();
     }
 }

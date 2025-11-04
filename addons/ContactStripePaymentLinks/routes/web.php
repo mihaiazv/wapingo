@@ -17,6 +17,11 @@ Route::middleware([
                 ContactStripePaymentLinksController::class,
                 'showSettings'
             ])->name('addon.contact_payment_links_stripe.vendor.settings.read');
+            // create payment link
+            Route::post('/create-payment-link', [
+                ContactStripePaymentLinksController::class,
+                'createPaymentLink'
+            ])->name('addon.contact_payment_links_stripe.vendor.payment_link.create');
             // create and send payment link
             Route::post('/create-and-send', [
                 ContactStripePaymentLinksController::class,

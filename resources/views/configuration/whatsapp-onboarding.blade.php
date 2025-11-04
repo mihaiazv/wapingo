@@ -1,7 +1,6 @@
 <?php
-$embeddedSignUpAddon = (getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon', 'registration_id') and (sha1(array_get($_SERVER, 'HTTP_HOST', '') . getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon','registration_id') . '1.0+') === getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon','signature')));
-$isExtendedLicence = ((getAppSettings('product_registration', 'licence') === 'dee257a8c3a2656b7d7fbe9a91dd8c7c41d90dc9') or $embeddedSignUpAddon); ?>
-<!-- Page Heading -->
+$embeddedSignUpAddon = $isExtendedLicence = (getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon', 'registration_id') and (sha1(array_get($_SERVER, 'HTTP_HOST', '') . getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon','registration_id') . '1.0+') === getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon','signature')));
+?>
 <!-- Page Heading -->
 <h1>
     <?= __tr('WhatsApp Onboarding Setup') ?>
@@ -41,7 +40,7 @@ $isExtendedLicence = ((getAppSettings('product_registration', 'licence') === 'de
                         <dt>{{  __tr('Verified Meta Account') }}</dt>
                         <dd>{{  __tr('To use Embedded signup for onboarding your customers you should have Meta Verified account') }}
                         <div >
-                            <a target="_blank" href="https://www.facebook.com/business/help/2058515294227817?id=180505742745347">{{  __tr('How to verify?') }}</a>
+                            <a target="_blank" href="https://www.facebook.com/business/help/2058515294227817>{{  __tr('How to verify?') }}</a>
                         </div>
                         </dd>
                         <dt class="mt-4">{{  __tr('Become a Tech Provider') }}</dt>
@@ -90,10 +89,10 @@ $isExtendedLicence = ((getAppSettings('product_registration', 'licence') === 'de
                     </div>
                     </div>
                 </fieldset>
-            @if(!$isExtendedLicence)
+            @if(!$isExtendedLicence or isDemo())
                 <div class="alert alert-warning my-3">
-                    <strong><?= __tr('Extended Licence or Embedded Signup Addon is Required') ?></strong> <br>
-                    <?= __tr('To use Embedded Signup you need to buy an Extended licence or Embedded Signup Addon.') ?>
+                    <strong><?= __tr('Embedded Signup Addon is Required') ?></strong> <br>
+                    <?= __tr('To use Embedded Signup you need to have an Embedded Signup Addon.') ?>
                 </div>
             @endif
             @if($isExtendedLicence)

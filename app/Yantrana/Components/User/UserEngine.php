@@ -31,6 +31,10 @@ use App\Yantrana\Base\BaseEngine;
 use App\Yantrana\Components\User\Repositories\UserRepository;
 use App\Yantrana\Components\User\Interfaces\UserEngineInterface;
 use Illuminate\Support\Facades\Auth;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 
 class UserEngine extends BaseEngine implements UserEngineInterface
 {
@@ -48,6 +52,62 @@ class UserEngine extends BaseEngine implements UserEngineInterface
     public function __construct(UserRepository $userRepository)
     {
         $this->userRepository = $userRepository;
+    }
+
+    /**
+     * Prepare 2FA QR Code with customize style
+     *
+     * @param  array  $requestData
+     * @return array|mixed
+     */
+    public function prepare2FAQrCode()
+    {
+        $user = $this->userRepository->fetchIt(getUserID());
+        $qrCodeSvg = '';
+
+        // Check 2FA enable
+        if ($user->two_factor_secret) {
+            $otpUrl = $user->twoFactorQrCodeUrl();
+
+            $renderer = new ImageRenderer(
+                new RendererStyle(500),
+                new SvgImageBackEnd()
+            );
+
+            $writer = new Writer($renderer);
+            $qrCodeSvg = $writer->writeString($otpUrl);
+        }
+
+        return $this->engineSuccessResponse([
+            'qrCodeSvg' => $qrCodeSvg,
+        ]);
+    }
+
+    /**
+     * Process confirm 2FA Confirm
+     *
+     * @param  array  $inputData
+     * @return array|mixed
+     */
+    public function process2FAuthenticationConfirm($inputData)
+    {
+        $user = $this->userRepository->fetchIt(getUserID());
+
+        // Check 2FA enable
+        if ($user->two_factor_secret) {
+            // Check if entered code is valid or not
+            if ($user->verifyTwoFactorAuth($inputData['confirm_code'])) {
+                if ($this->userRepository->updateIt($user, [
+                    'two_factor_confirmed_at' => now()
+                ])) {
+                    return $this->engineSuccessResponse([], __tr('Verification successful.'));
+                }
+            }
+
+            return $this->engineFailedResponse([], __tr('Entered code is invalid.'));
+        }
+
+        return $this->engineFailedResponse([], __tr('2FA not enabled.'));
     }
 
     /**

@@ -89,16 +89,21 @@ $endDate=request()->msg_end_date;
          <!--datatable-->
         <!-- action template -->
         <script type="text/template" id="messageLogActionColumnTemplate">
-            <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Details') }}" class="lw-btn btn btn-sm btn-default lw-ajax-link-action" data-response-template="#lwDetailsMessageBody" href="<%= __Utils.apiURL("{{ route('vendor.read.message.data', ['messageIdOrUid']) }}", {'messageIdOrUid': __tData._uid}) %>"  data-toggle="modal" data-target="#lwDetailsMessage"><i class="fa fa-info-circle"></i> {{  __tr('Message') }}</a>
+            @if (isThisDemoVendorAccountAccess())
+                <button class="btn btn-sm btn-default lw-disabled" disabled title="{{  __tr('Disabled for Demo') }}"><i class="fa fa-info-circle"></i> {{  __tr('Message') }}</button>
+            @else
+                <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Details') }}" class="lw-btn btn btn-sm btn-default lw-ajax-link-action" data-response-template="#lwDetailsMessageBody" href="<%= __Utils.apiURL("{{ route('vendor.read.message.data', ['messageIdOrUid']) }}", {'messageIdOrUid': __tData._uid}) %>"  data-toggle="modal" data-target="#lwDetailsMessage"><i class="fa fa-info-circle"></i> {{  __tr('Message') }}</a>
+            @endif
         </script>
         <script type="text/template" id="messageCampaignColumnTemplate">
                 <% if( __tData.messageVia == 'bot') { %>
                      {{  __tr('Bot') }}
                 <% } else if( __tData.messageVia == 'aibot') { %>
                    {{  __tr('AI Bot') }}
+                <% } else if(__tData.messageVia || __tData.messageVia == 'whatsapp_call') { %>
+                    {{  __tr('Whatsapp calling') }}
                 <% } else if(__tData.messageVia && __tData.messageVia !== 'bot' && __tData.messageVia !== 'aibot') { %>
-                    <a href="<%= __Utils.apiURL("{{ route('vendor.campaign.status.view', ['campaignUid' => 'campaignUid',]) }}", {'campaignUid': __tData.messageVia}) %>" class="campaign-text-color" title="{{ __tr('Campaign') }}">{{  __tr('Campaign') }}</a>      
-
+                    <a href="<%= __Utils.apiURL("{{ route('vendor.campaign.status.view', ['campaignUid' => 'campaignUid',]) }}", {'campaignUid': __tData.messageVia}) %>" class="campaign-text-color" title="{{ __tr('Campaign') }}">{{  __tr('Campaign') }}</a>
                 <% } 
                 else { %>
                     {{  ('-') }}

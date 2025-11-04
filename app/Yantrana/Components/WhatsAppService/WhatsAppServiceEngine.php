@@ -1,4 +1,5 @@
 <?php
+
 /**
  * WhatsJet
  *
@@ -39,6 +40,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use App\Events\VendorChannelBroadcast;
+use App\Events\WhatsappWebhookReceived;
 use App\Jobs\ProcessMessageWebhookJob;
 use App\Jobs\ProcessCampaignMessagesJob;
 use GuzzleHttp\Exception\ConnectException;
@@ -719,7 +721,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
             return $this->engineFailedResponse([], __tr('Failed to create campaign'));
         }
 
-        if(!app('akasmatTapasani')()) {
+        if (!app('akasmatTapasani')()) {
             return $this->engineSuccessResponse([
                 'campaignUid' => $campaign->_uid
             ], __tr('Test Message success and Campaign created'));
@@ -765,6 +767,16 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         });
 
         if ($isSucceed) {
+
+            if (function_exists('gc_collect_cycles')) {
+                // Collect garbage to free memory
+                // This is useful when processing large data sets
+                // to avoid memory leaks
+                // and ensure that memory is released.
+                $collected = gc_collect_cycles();
+                __logDebug($collected);
+            }
+            
             if (getAppSettings('enable_queue_jobs_for_campaigns')) {
                 if ($totalContacts) {
                     $numberOfJobs = ceil($totalContacts / getAppSettings('cron_process_messages_per_lot'));
@@ -796,12 +808,13 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
             return $monitor->terminate();
         }
         // set that cron job is done
-        if (!getAppSettings('cron_setup_using_artisan_at') and app()->runningInConsole() and
+        if (
+            !getAppSettings('cron_setup_using_artisan_at') and app()->runningInConsole() and
             (app()->runningConsoleCommand('schedule:run')
                 or app()->runningConsoleCommand('schedule:work')
                 or app()->runningConsoleCommand('whatsapp:campaign:process')
                 or app()->runningConsoleCommand('whatsapp:webhooks:process'))
-                ) {
+        ) {
             $this->configurationEngine->processConfigurationsStore('internals', [
                 'cron_setup_using_artisan_at' => now()
             ]);
@@ -843,7 +856,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 'currentPhoneNumberId' => $currentPhoneNumberId,
             ];
         }
-         $counter = 0;
+        $counter = 0;
         $responses = Http::pool(function (Pool $pool) use ($poolData, &$counter) {
             // Map each request to a pool get request
             $index = 1;
@@ -1101,15 +1114,23 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         $pattern = '/{{\d+}}/';
         $tempBodyParameters = [];
         $messageComponents = [];
-        
+
         if ($request->has('carousel_templates')) {
             // __dd($templateComponents);
             $contactId = $contact->_id;
             $contactUid = $contact->_uid;
             $componentValidations = [
-                'carousel_templates' => 'required|array|min:2',
-                'carousel_templates.*.uploaded_media_file_name' => 'required',
+                'carousel_templates' => 'required|array|min:2'
             ];
+
+            // Check if request from external API
+            if (isExternalApiRequest()) {
+                $componentValidations['carousel_templates.*.media_type'] = 'required';
+                $componentValidations['carousel_templates.*.media_url'] = 'required|url';
+            } else {
+                $componentValidations['carousel_templates.*.uploaded_media_file_type'] = 'required';
+                $componentValidations['carousel_templates.*.uploaded_media_file_name'] = 'required';
+            }
 
             $isBodyExists = false;
             if (isset($templateComponents[0]['example'])) {
@@ -1122,13 +1143,23 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                     $valueKeyName = str_replace('field_', '', $inputItemKey);
                     $bodyParameters[] = [
                         "type" => "text",
-                        "text" => $this->setParameterValue($contact, $inputs, $inputItemKey)                        
+                        "text" => $this->setParameterValue($contact, $inputs, $inputItemKey)
                     ];
 
                     if ($isBodyExists) {
                         $componentValidations[$inputItemKey] = 'required';
                     }
                 }
+            }
+
+            $componentValidations['carousel_templates.*.body_example_fields.*'] = 'required';
+            // If not for campaign then validate carousel request
+            if (!$isForCampaign) {
+                $request->validate($componentValidations, [], [
+                    'carousel_templates.*.uploaded_media_file_name' => __tr('media file'),
+                    'carousel_templates.*.media_url' => __tr('media file'),
+                    'carousel_templates.*.body_example_fields.*' => __tr('body example field')
+                ]);
             }
 
             $cardData = [
@@ -1138,51 +1169,61 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
             if (!__isEmpty($inputs['carousel_templates'])) {
                 foreach ($inputs['carousel_templates'] as $cardIndex => $carouselTemplate) {
                     $mediaId = null;
-                    $headerType = $mediaUrl = '';
+                    $headerType = Str::lower(data_get($carouselTemplate, 'uploaded_media_file_type'));
+                    $mediaUrl = '';
                     $mediaSource = $header = [];
-                    // Check if input data have media id and url
-                    if (isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id'])
-                        and $inputs['carousel_templates'][$cardIndex]['uploaded_media_id']) {
-                        $mediaId = $inputs['carousel_templates'][$cardIndex]['uploaded_media_id'];
-                        if ($carouselTemplate['uploaded_media_file_type'] == 'IMAGE') {
-                            $headerType = 'image';
-                        } elseif ($carouselTemplate['uploaded_media_file_type'] == 'VIDEO') {
-                            $headerType = 'video';
-                        }
-                    } elseif (!isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id'])
-                            and !__isEmpty($carouselTemplate['uploaded_media_file_name'])) {
-                        if ($carouselTemplate['uploaded_media_file_type'] == 'IMAGE') {
-                            $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $carouselTemplate['uploaded_media_file_name']], 'whatsapp_image');
-                            if ($isProcessed->failed()) {
-                                return $isProcessed;
-                            }
-                            $mediaId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
-                            $headerType = 'image';
-                            $mediaUrl = $isProcessed->data('path');
-                        } elseif ($carouselTemplate['uploaded_media_file_type'] == 'VIDEO') {
-                            $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $carouselTemplate['uploaded_media_file_name']], 'whatsapp_video');
-                            if ($isProcessed->failed()) {
-                                return $isProcessed;
-                            }
-                            $mediaId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
-                            $headerType = 'video';
-                            $mediaUrl = $isProcessed->data('path');
-                        } else {
+
+                    // Check if request from external API
+                    if (isExternalApiRequest()) {
+                        $headerType = Str::lower($carouselTemplate['media_type']);
+                        $downloadedFileInfo = $this->mediaEngine->downloadAndStoreMediaFile([
+                            'media_url' => $carouselTemplate['media_url']
+                        ], getVendorUid(), $headerType);
+
+                        if (__isEmpty($downloadedFileInfo)) {
                             return $this->engineFailedResponse([], __tr('Invalid media.'));
                         }
+
+                        $mediaUrl = $downloadedFileInfo['path'];
+                        $fileMimeType = $this->mediaEngine->getMimeType($mediaUrl);
+                        $mediaId = $this->whatsAppApiService->uploadMedia($mediaUrl, $fileMimeType);
 
                         $inputs['carousel_templates'][$cardIndex]['uploaded_media_id'] = $mediaId;
                         $inputs['carousel_templates'][$cardIndex]['uploaded_media_id_expiry_at'] = now()->addDays(29);
                     }
 
-                    if (isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id'])
+                    // Check if input data have media id and url
+                    if (
+                        isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id'])
+                        and $inputs['carousel_templates'][$cardIndex]['uploaded_media_id']
+                    ) {
+                        $mediaId = $inputs['carousel_templates'][$cardIndex]['uploaded_media_id'];
+                    } elseif (
+                        !isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id'])
+                        and !__isEmpty(data_get($carouselTemplate, 'uploaded_media_file_name'))
+                    ) {
+
+                        $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $carouselTemplate['uploaded_media_file_name']], 'whatsapp_' . $headerType);
+                        if ($isProcessed->failed()) {
+                            return $isProcessed;
+                        }
+                        $mediaId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
+                        $mediaUrl = $isProcessed->data('path');
+
+                        $inputs['carousel_templates'][$cardIndex]['uploaded_media_id'] = $mediaId;
+                        $inputs['carousel_templates'][$cardIndex]['uploaded_media_id_expiry_at'] = now()->addDays(29);
+                    }
+
+                    if (
+                        isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id'])
                         and $inputs['carousel_templates'][$cardIndex]['uploaded_media_id']
                         and isset($inputs['carousel_templates'][$cardIndex]['uploaded_media_id_expiry_at'])
-                        and Carbon::parse($inputs['carousel_templates'][$cardIndex]['uploaded_media_id_expiry_at'])->isFuture()) {
-                            $mediaSource['id'] = $mediaId;
-                            $mediaSource['link'] = $mediaUrl;
+                        and Carbon::parse($inputs['carousel_templates'][$cardIndex]['uploaded_media_id_expiry_at'])->isFuture()
+                    ) {
+                        $mediaSource['id'] = $mediaId;
+                        $mediaSource['link'] = $mediaUrl;
                     }
-                    
+
                     if ($mediaSource) {
                         $header = [
                             "type" => "header",
@@ -1211,7 +1252,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                     }
 
                     $buttons = [];
-                    
+
                     if (!__isEmpty($carouselTemplate['button_type'])) {
                         foreach ($carouselTemplate['button_type'] as $buttonIndex => $buttonType) {
                             $buttonData = [];
@@ -1264,7 +1305,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                             $buttons[] = $buttonData;
                         }
                     }
-                    
+
                     $cardData['cards'][] = [
                         "card_index" => $cardIndex,
                         "components" => array_merge(
@@ -1286,17 +1327,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 ];
             }
 
-            $componentValidations['carousel_templates.*.body_example_fields.*'] = 'required';
-            
-            if (!$isForCampaign) {
-                $request->validate($componentValidations, [], [
-                    'carousel_templates.*.uploaded_media_file_name' => __tr('media file'),
-                    'carousel_templates.*.body_example_fields.*' => __tr('body example field')
-                ]);
-            }
-
             $messageComponents[] = $cardData;
-
         } else {
             foreach ($templateComponents as $templateComponent) {
                 if ($templateComponent['type'] == 'HEADER') {
@@ -1450,112 +1481,118 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                             $inputs['whatsapp_video_media_id'] = $mediaUploadedId;
                             $inputs['whatsapp_video_media_id_expiry_at'] = now()->addDays(29);
                         }
-                    $videoSource = [];
-                    if (isset($inputs['whatsapp_video_media_id'])
-                        and $inputs['whatsapp_video_media_id']
-                        and isset($inputs['whatsapp_video_media_id_expiry_at'])
-                        and Carbon::parse($inputs['whatsapp_video_media_id_expiry_at'])->isFuture()) {
-                        $videoSource = [
-                            'id' => $inputs['whatsapp_video_media_id'],
-                        ];
-                    } else {
-                        $videoSource = [
-                            'link' => $inputs['whatsapp_video'],
-                        ];
-                    }
-                    $componentBody[$mainIndex] = [
-                        'type' => 'header',
-                        'parameters' => [
-                            [
-                                'type' => 'video',
-                                'video' => $videoSource,
-                            ],
-                        ],
-                    ];
-                } elseif ($templateComponent['format'] == 'IMAGE') {
-                    $mainIndex++;
-                    if (isset($inputs['header_image']) and isValidUrl($inputs['header_image'])) {
-                        $inputs['whatsapp_image'] = $inputs['header_image'];
-                    } elseif (!isset($inputs['whatsapp_image'])) {
-                        $inputHeaderImage = $inputs['header_image'];
-                        $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $inputHeaderImage], 'whatsapp_image');
-                        if ($isProcessed->failed()) {
-                            return $isProcessed;
+                        $videoSource = [];
+                        if (
+                            isset($inputs['whatsapp_video_media_id'])
+                            and $inputs['whatsapp_video_media_id']
+                            and isset($inputs['whatsapp_video_media_id_expiry_at'])
+                            and Carbon::parse($inputs['whatsapp_video_media_id_expiry_at'])->isFuture()
+                        ) {
+                            $videoSource = [
+                                'id' => $inputs['whatsapp_video_media_id'],
+                            ];
+                        } else {
+                            $videoSource = [
+                                'link' => $inputs['whatsapp_video'],
+                            ];
                         }
-                        $inputs['whatsapp_image'] = $isProcessed->data('path');
-                        $mediaUploadedId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
-                        $inputs['whatsapp_image_media_id'] = $mediaUploadedId;
-                        $inputs['whatsapp_image_media_id_expiry_at'] = now()->addDays(29);
-                    }
-                    $imageSource = [
-                        'link' => $inputs['whatsapp_image'],
-                    ];
-                    if (isset($inputs['whatsapp_image_media_id'])
-                        and $inputs['whatsapp_image_media_id']
-                        and isset($inputs['whatsapp_image_media_id_expiry_at'])
-                        and Carbon::parse($inputs['whatsapp_image_media_id_expiry_at'])->isFuture()) {
-                        $imageSource['id'] = $inputs['whatsapp_image_media_id'];
-                    }
-                    $componentBody[$mainIndex] = [
-                        'type' => 'header',
-                        'parameters' => [
-                            [
-                                'type' => 'image',
-                                'image' => $imageSource,
-                            ],
-                        ],
-                    ];
-                } elseif ($templateComponent['format'] == 'DOCUMENT') {
-                    $mainIndex++;
-                    $inputHeaderDocument = $inputs['header_document'];
-                    if (isset($inputs['header_document']) and isValidUrl($inputs['header_document'])) {
-                        $inputs['whatsapp_document'] = $inputs['header_document'];
-                    } elseif (!isset($inputs['whatsapp_document'])) {
-                        $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $inputHeaderDocument], 'whatsapp_document');
-                        if ($isProcessed->failed()) {
-                            return $isProcessed;
-                        }
-                        $inputs['whatsapp_document'] = $isProcessed->data('path');
-                        $mediaUploadedId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
-                        $inputs['whatsapp_document_media_id'] = $mediaUploadedId;
-                        $inputs['whatsapp_document_media_id_expiry_at'] = now()->addDays(29);
-                    }
-                    $documentSource = [
-                        'filename' => $this->setParameterValue($contact, $inputs, 'header_document_name'),
-                        'link' => $inputs['whatsapp_document'],
-                    ];
-                    if (isset($inputs['whatsapp_document_media_id'])
-                        and $inputs['whatsapp_document_media_id']
-                    and isset($inputs['whatsapp_document_media_id_expiry_at'])
-                        and Carbon::parse($inputs['whatsapp_document_media_id_expiry_at'])->isFuture()) {
-                        $documentSource['id'] = $inputs['whatsapp_document_media_id'];
-                    }
-                    $componentBody[$mainIndex] = [
-                        'type' => 'header',
-                        'parameters' => [
-                            [
-                                'type' => 'document',
-                                'document' => $documentSource,
-                            ],
-                        ],
-                    ];
-                } elseif ($templateComponent['format'] == 'LOCATION') {
-                    // @link https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates/#location
-                    $mainIndex++;
-                    $componentBody[$mainIndex] = [
-                        'type' => 'header',
-                        'parameters' => [
-                            [
-                                'type' => 'location',
-                                'location' => [
-                                    'latitude' => $this->setParameterValue($contact, $inputs, 'location_latitude'),
-                                    'longitude' => $this->setParameterValue($contact, $inputs, 'location_longitude'),
-                                    'name' => $this->setParameterValue($contact, $inputs, 'location_name'),
-                                    'address' => $this->setParameterValue($contact, $inputs, 'location_address'),
+                        $componentBody[$mainIndex] = [
+                            'type' => 'header',
+                            'parameters' => [
+                                [
+                                    'type' => 'video',
+                                    'video' => $videoSource,
                                 ],
                             ],
-                        ]
-                    ];
+                        ];
+                    } elseif ($templateComponent['format'] == 'IMAGE') {
+                        $mainIndex++;
+                        if (isset($inputs['header_image']) and isValidUrl($inputs['header_image'])) {
+                            $inputs['whatsapp_image'] = $inputs['header_image'];
+                        } elseif (!isset($inputs['whatsapp_image'])) {
+                            $inputHeaderImage = $inputs['header_image'];
+                            $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $inputHeaderImage], 'whatsapp_image');
+                            if ($isProcessed->failed()) {
+                                return $isProcessed;
+                            }
+                            $inputs['whatsapp_image'] = $isProcessed->data('path');
+                            $mediaUploadedId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
+                            $inputs['whatsapp_image_media_id'] = $mediaUploadedId;
+                            $inputs['whatsapp_image_media_id_expiry_at'] = now()->addDays(29);
+                        }
+                        $imageSource = [
+                            'link' => $inputs['whatsapp_image'],
+                        ];
+                        if (
+                            isset($inputs['whatsapp_image_media_id'])
+                            and $inputs['whatsapp_image_media_id']
+                            and isset($inputs['whatsapp_image_media_id_expiry_at'])
+                            and Carbon::parse($inputs['whatsapp_image_media_id_expiry_at'])->isFuture()
+                        ) {
+                            $imageSource['id'] = $inputs['whatsapp_image_media_id'];
+                        }
+                        $componentBody[$mainIndex] = [
+                            'type' => 'header',
+                            'parameters' => [
+                                [
+                                    'type' => 'image',
+                                    'image' => $imageSource,
+                                ],
+                            ],
+                        ];
+                    } elseif ($templateComponent['format'] == 'DOCUMENT') {
+                        $mainIndex++;
+                        $inputHeaderDocument = $inputs['header_document'];
+                        if (isset($inputs['header_document']) and isValidUrl($inputs['header_document'])) {
+                            $inputs['whatsapp_document'] = $inputs['header_document'];
+                        } elseif (!isset($inputs['whatsapp_document'])) {
+                            $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $inputHeaderDocument], 'whatsapp_document');
+                            if ($isProcessed->failed()) {
+                                return $isProcessed;
+                            }
+                            $inputs['whatsapp_document'] = $isProcessed->data('path');
+                            $mediaUploadedId = $this->whatsAppApiService->uploadMedia($isProcessed->data('filePath'), $isProcessed->data('fileMimeType'));
+                            $inputs['whatsapp_document_media_id'] = $mediaUploadedId;
+                            $inputs['whatsapp_document_media_id_expiry_at'] = now()->addDays(29);
+                        }
+                        $documentSource = [
+                            'filename' => $this->setParameterValue($contact, $inputs, 'header_document_name'),
+                            'link' => $inputs['whatsapp_document'],
+                        ];
+                        if (
+                            isset($inputs['whatsapp_document_media_id'])
+                            and $inputs['whatsapp_document_media_id']
+                            and isset($inputs['whatsapp_document_media_id_expiry_at'])
+                            and Carbon::parse($inputs['whatsapp_document_media_id_expiry_at'])->isFuture()
+                        ) {
+                            $documentSource['id'] = $inputs['whatsapp_document_media_id'];
+                        }
+                        $componentBody[$mainIndex] = [
+                            'type' => 'header',
+                            'parameters' => [
+                                [
+                                    'type' => 'document',
+                                    'document' => $documentSource,
+                                ],
+                            ],
+                        ];
+                    } elseif ($templateComponent['format'] == 'LOCATION') {
+                        // @link https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates/#location
+                        $mainIndex++;
+                        $componentBody[$mainIndex] = [
+                            'type' => 'header',
+                            'parameters' => [
+                                [
+                                    'type' => 'location',
+                                    'location' => [
+                                        'latitude' => $this->setParameterValue($contact, $inputs, 'location_latitude'),
+                                        'longitude' => $this->setParameterValue($contact, $inputs, 'location_longitude'),
+                                        'name' => $this->setParameterValue($contact, $inputs, 'location_name'),
+                                        'address' => $this->setParameterValue($contact, $inputs, 'location_address'),
+                                    ],
+                                ],
+                            ]
+                        ];
                     } elseif ($templateComponent['format'] == 'IMAGE') {
                         $mainIndex++;
                         if (isset($inputs['header_image']) and isValidUrl($inputs['header_image'])) {
@@ -1634,7 +1671,6 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                             ],
                         ];
                     }
-                    
                 } elseif ($templateComponent['type'] == 'BUTTONS') {
                     $componentButtonIndex = 0;
                     $skipComponentsCreations = [
@@ -1691,7 +1727,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 // This is useful when processing large data sets
                 // to avoid memory leaks
                 // and ensure that memory is released.
-                gc_collect_cycles();
+                // gc_collect_cycles();
             }
         }
 
@@ -1856,8 +1892,8 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
             return $this->engineFailedResponse([], __tr('You can not send message to your WhatsApp API number.'));
         }
 
-        if(!app()->runningInConsole()) {
-            if(!app('chukichTapasit')()) {
+        if (!app()->runningInConsole()) {
+            if (!app('chukichTapasit')()) {
                 return $this->engineFailedResponse([], __tr('Failed to send message'));
             }
         }
@@ -2015,7 +2051,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 'is_blocked' => false
             ]);
         }
-        
+
         return $this->engineSuccessResponse(array_merge($dataToSend, [
             // check if received incoming message from contact in last 24 hours
             // the direct message won't be delivered if not received any message by user in last 24 hours
@@ -2067,10 +2103,10 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 $item->message = $this->formatSystemMessage(data_get($item->__data, 'system_message_data'));
             } else {
                 $item->message = $this->formatWhatsAppText($item->message);
-            }            
+            }
             $item->template_message = null;
             if (! $item->message || Arr::get($item->__data, 'interaction_message_data')) {
-                $item->template_message = $this->compileMessageWithValues($item->__data);          
+                $item->template_message = $this->compileMessageWithValues($item->__data);
             };
             return $item;
         });
@@ -2111,7 +2147,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
 
         $vendorContactsWithUnreadDetails = $this->contactRepository->getVendorContactsWithUnreadDetails($vendorId, $assigned);
         $this->hasMoreContacts = $vendorContactsWithUnreadDetails->hasMorePages();
-        if (!__isEmpty($contact)) {
+        if (!__isEmpty($contact) and $contact->unread_messages_count != 0) {
             $isContactInTheList = $vendorContactsWithUnreadDetails->where('_id', $contact->_id)->count();
             if (!$isContactInTheList) {
                 $vendorContactsWithUnreadDetails = $vendorContactsWithUnreadDetails->toBase()->merge([$contact]);
@@ -2195,7 +2231,17 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 'templateComponents' => $messageData['template_components'],
                 'templateComponentValues' => $messageData['template_component_values']
             ])->render();
+        } elseif (
+            isset($messageData['webhook_responses']['incoming'][0]['changes'][0]['field'])
+            and $messageData['webhook_responses']['incoming'][0]['changes'][0]['field'] == 'calls'
+        ) {
+            return view('whatsapp-service.calling-message', [
+                'whatsappCallingData' => data_get($messageData, 'webhook_responses')
+            ])->render();
+        } elseif (!__isEmpty(data_get($messageData, 'webhook_responses.incoming.0.changes.0.value.messages.0.interactive.type')) and data_get($messageData, 'webhook_responses.incoming.0.changes.0.value.messages.0.interactive.type') == 'call_permission_reply') {
+            return configItem('call_request_actions', data_get($messageData, 'webhook_responses.incoming.0.changes.0.value.messages.0.interactive.call_permission_reply.response'));
         }
+
 
         if (! isset($messageData['template_components']) or ! isset($messageData['template_component_values'])) {
             return null;
@@ -2410,15 +2456,23 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 $caption = $mediaMessageData['caption'];
                 $mediaType = $mediaMessageData['header_type'];
                 // check if media id is available and not expired
-                if (isset($mediaMessageData['media_id'])
+                if (
+                    isset($mediaMessageData['media_id'])
                     and $mediaMessageData['media_id']
                     and isset($mediaMessageData['media_id_expiry_at'])
-                    and Carbon::parse($mediaMessageData['media_id_expiry_at'])->isFuture()) {
-                        $mediaUploadedId = $mediaMessageData['media_id'];
+                    and Carbon::parse($mediaMessageData['media_id_expiry_at'])->isFuture()
+                ) {
+                    $mediaUploadedId = $mediaMessageData['media_id'];
                 }
             } elseif (!isValidUrl($request->media_url)) {
                 $rawUploadData = json_decode($request->raw_upload_data, true);
-                $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $request->uploaded_media_file_name], 'whatsapp_' . $mediaType);
+
+                if ($request->is_recorded_audio) {
+                    $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $request->uploaded_media_file_name], 'whatsapp_' . $mediaType);
+                } else {
+                    $isProcessed = $this->mediaEngine->whatsappMediaUploadProcess(['filepond' => $request->uploaded_media_file_name], 'whatsapp_' . $mediaType);
+                }
+
                 if ($isProcessed->failed()) {
                     return $isProcessed;
                 }
@@ -2662,7 +2716,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 return $this->engineFailedResponse([], __tr('Message body is empty'));
             }
         }
-        
+
         $isBotTimingsEnabled = getVendorSettings('enable_bot_timing_restrictions', null, null, $contact->vendors__id);
         $isAiBotTimingsEnabled = getVendorSettings('enable_ai_bot_timing_restrictions', null, null, $contact->vendors__id);
         $isBotTimingsInTime = $this->isInAllowedBotTiming($contact->vendors__id);
@@ -2670,7 +2724,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         // search for only likewise records or welcome messages
         $allBotReplies = $this->botReplyRepository->getRelatedOrWelcomeBots($dataFetchConditions)->sortBy('priority_index');
         $isBotMatched = false;
-        
+
         if ((!$contact->disable_reply_bot || $options['isTriggerFromQuickReply']) and !__isEmpty($allBotReplies)) {
             // check if we already have incoming message 2 days
             $isIncomingMessageExists = $this->whatsAppMessageLogRepository->countIt([
@@ -2843,7 +2897,10 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
 
                             $templateData = Arr::get($templateMessageData, 'template_data.log_message.__data');
                             $templateProforma = Arr::get($templateData, 'template_proforma');
-
+                            // missing or invalid template data
+                            if (!$templateData) {
+                                continue;
+                            }
                             $sendReplyBotMessageResponse = $this->sendActualWhatsAppTemplateMessage(
                                 $contact->vendors__id,
                                 $contact->_id,
@@ -2909,7 +2966,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                     }
                 } catch (\Throwable $e) {
                     // if openai issues
-                    if($e instanceof \OpenAI\Exceptions\ErrorException) {
+                    if ($e instanceof \OpenAI\Exceptions\ErrorException) {
                         logSystemVendorChatMessage($contact, 'ERROR', $e->getMessage());
                     }
                     __logDebug($e->getMessage());
@@ -2999,12 +3056,20 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
     }
     public function processWebhook($request, $vendorUid)
     {
-        // __logDebug($request->all());
         $monitor = new ServerPerformanceMonitorService();
         if ($monitor->isCritical()) {
             // if server is not in normal state then return
             return $monitor->terminate();
         }
+
+        // Only dispatch Whatsapp calling related webhook for WhatsJetCallingAddon
+        $messageEntry = $request->get('entry');
+        $webhookField = Arr::get($messageEntry, '0.changes.0.field');
+        if ($webhookField == 'calls') {
+            event(new WhatsappWebhookReceived($request->all(), $vendorUid));
+            return response()->json(['status' => 'success']);
+        }
+
         // if not using db for webhook processing
         // then process the webhook request directly
         if (!getAppSettings('enable_wa_webhook_process_using_db')) {
@@ -3033,6 +3098,21 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         // response
         return response()->json(['status' => 'success']);
     }
+
+    public function sanitizeSdp($sdp)
+    {
+        // Split SDP by new line (\r\n or \n)
+        $lines = preg_split('/\r\n|\r|\n/', $sdp);
+        $clean = [];
+
+        foreach ($lines as $line) {
+            $clean[] = $line;
+        }
+
+        // Join lines back with \r\n (as per SDP spec)
+        return implode("\r\n", $clean) . "\r\n";
+    }
+
     /**
      * Webhook for message handling
      *
@@ -3058,12 +3138,21 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         }
         $messageEntry = $request->get('entry');
         $webhookField = Arr::get($messageEntry, '0.changes.0.field');
+
+        // If call_permission_reply is "user_action" then process further
+        // else if it is "automatic" then don't process this webhook.
+        if (data_get($messageEntry, '0.changes.0.value.messages.0.interactive.type') == 'call_permission_reply' and data_get($messageEntry, '0.changes.0.value.messages.0.interactive.call_permission_reply.response_source') == 'automatic') {
+            return true;
+        }
+
         switch ($webhookField) {
             case 'account_update':
                 return $this->accountUpdateWebhook($messageEntry, $vendorId);
                 break;
             case 'history':
                 return $this->historyWebhook($messageEntry, $vendorId);
+            case 'smb_message_echoes':
+                return true;
                 // contacts sync
             case 'smb_app_state_sync':
                 return $this->appContactSyncWebhook($messageEntry, $vendorId);
@@ -3197,7 +3286,10 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                     $messageBody = Arr::get($messageObject, '0.interactive.list_reply.title');
                 }
                 if (!$messageBody) {
-                    $messageBody = $this->jsonToListRecursive(Arr::get($messageObject, '0.interactive.nfm_reply.response_json'));
+                    $nfmReply = Arr::get($messageObject, '0.interactive.nfm_reply.response_json');
+                    if (!__isEmpty($nfmReply)) {
+                        $messageBody = $this->jsonToListRecursive($nfmReply);
+                    }
                 }
             } elseif (in_array($messageType, [
                 'button',
@@ -3459,7 +3551,11 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         $rawContacts = Arr::get($entry, '0.changes.0.value.state_sync');
         $contacts = [];
         $numbersToProcess = [];
-        foreach ($rawContacts as $rawContact) {
+        foreach ($rawContacts as $rawContactKey => $rawContact) {
+            if (($rawContact['contact']['action'] ?? '') == 'remove') {
+                unset($rawContacts[$rawContactKey]);
+                continue;
+            }
             $numbersToProcess[] = $rawContact['contact']['phone_number'];
         }
 
@@ -3474,14 +3570,18 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                 ]
             ]
         )?->keyBy('wa_id')?->toArray() ?: [];
-        foreach ($rawContacts as $rawContact) {
+        foreach ($rawContacts as $rawContactKey => $rawContact) {
+            if (($rawContact['contact']['action'] ?? '') == 'remove') {
+                unset($rawContacts[$rawContactKey]);
+                continue;
+            }
             $numbersToProcess[] = $rawContact['contact']['phone_number'];
-            $firstName = Arr::get(explode(' ', $rawContact['contact']['full_name']), '0');
+            $firstName = Arr::get(explode(' ', $rawContact['contact']['full_name'] ?? ''), '0');
             $phoneNumber = $rawContact['contact']['phone_number'];
             $contactToUpdate = [
                 // '_uid' => (string) Str::uuid(),
                 'first_name' => $firstName,
-                'last_name' => str_replace($firstName, ' ', $rawContact['contact']['full_name']),
+                'last_name' => str_replace($firstName, ' ', $rawContact['contact']['full_name'] ?? ''),
                 'wa_id' => $phoneNumber,
                 'vendors__id' => $vendorId,
             ];
@@ -3489,12 +3589,11 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
             $contacts[] = [
                 '_uid' => $vendorAllContacts[$phoneNumber]['_uid'] ?? (string) Str::uuid(),
                 'first_name' => $firstName,
-                'last_name' => str_replace($firstName, ' ', $rawContact['contact']['full_name']),
+                'last_name' => str_replace($firstName, ' ', $rawContact['contact']['full_name'] ?? ''),
                 'wa_id' => $phoneNumber,
                 'vendors__id' => $vendorId,
             ];
         }
-
         if (!empty($contacts)) {
             // check the feature limit
             $vendorPlanDetails = vendorPlanDetails('contacts', $this->contactRepository->countIt([
@@ -3589,6 +3688,10 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
         if (empty($phoneNumbers)) {
             return $this->engineFailedResponse([], __tr('Phone numbers not available'));
         }
+        foreach ($phoneNumbers as $key => $phoneNumber) {
+            // get phone info
+            $phoneNumbers[$key]['phone_status_info'] = $this->whatsAppApiService->phoneInfo($phoneNumber['id']);
+        }
         $whatsAppBusinessAccountId = getVendorSettings('whatsapp_business_account_id');
         if (!$whatsAppBusinessAccountId) {
             return $this->engineFailedResponse([], __tr('WhatsApp Business Account ID not found'));
@@ -3631,7 +3734,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
      * @param array $text
      * @return string
      */
-    protected function formatSystemMessage($systemMessageData) 
+    protected function formatSystemMessage($systemMessageData)
     {
         $message = '';
         if (!__isEmpty($systemMessageData)) {
@@ -3730,12 +3833,17 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
     public function processConnectWebhook()
     {
         $vendorUid = getVendorUid();
-        $processedResponse = $this->whatsAppConnectApiService->connectBaseWebhook(getVendorSettings('facebook_app_id'), getVendorSettings('facebook_app_secret'), $vendorUid);
-        // Note: We use override webhook urls only for embedded signup
-        // and as if vendor connected via Embedded signup they don't have facility to disconnect webhooks
-        // thats why commented out the url
-        // $processedResponse = $this->whatsAppConnectApiService->connectWebhookOverrides($vendorUid, getVendorSettings('whatsapp_business_account_id'));
+        if (!getVendorSettings('whatsapp_access_token')) {
+            return $this->engineFailedResponse([], __tr('Invalid Request'));
+        }
+        if (getVendorSettings('embedded_setup_done_at')) {
+            $processedResponse = $this->whatsAppConnectApiService->connectWebhookOverrides($vendorUid, getVendorSettings('whatsapp_business_account_id'));
+        } else {
+            $processedResponse = $this->whatsAppConnectApiService->connectBaseWebhook(getVendorSettings('facebook_app_id'), getVendorSettings('facebook_app_secret'), $vendorUid);
+        }
         if (isset($processedResponse['success']) and $processedResponse['success']) {
+            sleep(1); // wait for a second to reflect the changes
+            $this->processSyncPhoneNumbers();
             return $this->engineSuccessResponse([], __tr('Webhook Connected'));
         }
         return $this->engineFailedResponse([], __tr('Nothing to connect'));
@@ -3879,6 +3987,27 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
     }
 
     /**
+     * Register Phone Number
+     *
+     * @param array $inputData
+     * @return EngineResponse
+     */
+    public function processRegisterPhoneNumber($inputData)
+    {
+        $registerPhoneNumberData = $this->whatsAppApiService->registerPhoneNumber($inputData['phone_number_id'], [
+            'messaging_product' => 'whatsapp',
+            'pin' => $inputData['pin'],
+        ]);
+
+        if ($registerPhoneNumberData['success'] ?? null) {
+            $displayNameData = $this->whatsAppApiService->displayName($inputData['phone_number_id']);
+            return $this->engineSuccessResponse([], __tr('Phone number register successfully.'));
+        }
+
+        return $this->engineFailedResponse([], __tr('Failed to submit request to register phone number.'));
+    }
+
+    /**
      * Update WhatsApp Business Number Profile
      *
      * @param BaseRequestTwo $request
@@ -3931,8 +4060,7 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
     {
         $vendorId = getVendorId();
         $messageLogCollection = $this->whatsAppMessageLogRepository->fetchMessageLogDataTableSource($type, $startDate, $endDate);
-
-
+        $isDemoModeAndAccount = isThisDemoVendorAccountAccess();
         // required columns for DataTables
         $requireColumns = [
             '_id',
@@ -3966,6 +4094,15 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
                     // Ensure '_uid' exists and return UID
                     return $campaign['_uid'];
                 }
+
+                $callDirection = data_get($data, 'webhook_responses.incoming.0.changes.0.value.calls.0.direction');
+                $isFreeFormCallPermissionRequest = data_get($data, 'options.is_free_form_call_permission_request');
+
+                // Check if user initiate the call
+                if ($callDirection == 'USER_INITIATED' or $callDirection == 'BUSINESS_INITIATED' or $isFreeFormCallPermissionRequest) {
+                    return 'whatsapp_call';
+                }
+
                 return null;
             },
             //type
@@ -3977,12 +4114,14 @@ class WhatsAppServiceEngine extends BaseEngine implements WhatsAppServiceEngineI
 
             'status',
             //sender
-            'from' => function ($rowData) {
-                return $rowData['is_incoming_message'] ? $rowData['contact_wa_id'] : $rowData['wab_phone_number_id'];
+            'from' => function ($rowData) use (&$isDemoModeAndAccount) {
+                $numberToShow = $rowData['is_incoming_message'] ? $rowData['contact_wa_id'] : $rowData['wab_phone_number_id'];
+                return $isDemoModeAndAccount ? maskForDemo($numberToShow, 'phone', $isDemoModeAndAccount) : $numberToShow;
             },
             //receiver
-            'recepient' => function ($rowData) {
-                return $rowData['is_incoming_message'] ? $rowData['wab_phone_number_id'] : $rowData['contact_wa_id'];
+            'recepient' => function ($rowData) use (&$isDemoModeAndAccount) {
+                $numberToShow = $rowData['is_incoming_message'] ? $rowData['wab_phone_number_id'] : $rowData['contact_wa_id'];
+                return $isDemoModeAndAccount ? maskForDemo($numberToShow, 'phone', $isDemoModeAndAccount) : $numberToShow;
             },
             //messaged at
             'messaged_at' => function ($rowData) {

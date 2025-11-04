@@ -33,6 +33,7 @@ return [
     ['language' => 'Czech', 'code' => 'cs'],
     ['language' => 'Danish', 'code' => 'da'],
     ['language' => 'Dutch', 'code' => 'nl'],
+    ['language' => 'English', 'code' => 'en'],
     ['language' => 'English (UK)', 'code' => 'en_GB'],
     ['language' => 'English (US)', 'code' => 'en_US'],
     ['language' => 'Estonian', 'code' => 'et'],

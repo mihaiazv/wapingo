@@ -42,11 +42,13 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
+use Laravel\Fortify\TwoFactorAuthenticatable;
+use PragmaRX\Google2FA\Google2FA;
 
 class AuthModel extends BaseModel implements AuthenticatableContract, AuthorizableContract, CanResetPasswordContract
 {
     use Authenticatable, Authorizable, CanResetPassword, MustVerifyEmail;
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     /**
      * @var string - The database table used by the model.
@@ -68,7 +70,7 @@ class AuthModel extends BaseModel implements AuthenticatableContract, Authorizab
      *
      * @var array
      */
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'];
 
     protected $appends = [
         'full_name',
@@ -108,6 +110,32 @@ class AuthModel extends BaseModel implements AuthenticatableContract, Authorizab
         return Attribute::make(
             get: fn(mixed $value, array $attributes) => (($attributes['first_name'] ?? '') . ' ' . ($attributes['last_name'] ?? '')),
         );
+    }
+
+    public function verifyTwoFactorAuth($code)
+    {
+        $google2fa = new Google2FA();
+
+        return $google2fa->verifyKey(
+            decrypt($this->two_factor_secret),
+            $code
+        );
+    }
+
+    public function verifyRecoveryCode($code)
+    {
+        $codes = json_decode(decrypt($this->two_factor_recovery_codes), true);
+
+        if (in_array($code, $codes)) {
+            // Remove the used recovery code
+            $this->forceFill([
+                'two_factor_recovery_codes' => encrypt(json_encode(array_values(array_diff($codes, [$code])))),
+            ])->save();
+
+            return true;
+        }
+
+        return false;
     }
 
 }

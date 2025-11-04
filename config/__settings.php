@@ -533,10 +533,69 @@ return [
                 'hide_value' => false,
                 'ignore_empty' => false,
             ],
-            
-           
         ],
-        //yoo-money end
+        // PhonePe Start
+        'phonepe_payment' => [
+            'enable_phonepe' => [
+                'key' => 'enable_phonepe',
+                'data_type' => 2,    // boolean
+                'default' => false,
+            ],
+            'use_test_phonepe' => [
+                'key' => 'use_test_phonepe',
+                'data_type' => 2,    // boolean
+                'default' => false,
+            ],
+            'phonepe_testing_client_id' => [
+                'key' => 'phonepe_testing_client_id',
+                'data_type' => 1,    // string
+                'default' => '',
+                'placeholder' => __tr('Test Shop Id'),
+                'hide_value' => false,
+                'ignore_empty' => false,
+            ],
+            'phonepe_testing_secret_key' => [
+                'key' => 'phonepe_testing_secret_key',
+                'data_type' => 1,    // string
+                'default' => '',
+                'placeholder' => __tr('Test Secret Key'),
+                'hide_value' => false,
+                'ignore_empty' => false,
+            ],
+            'phonepe_testing_client_version' => [
+                'key' => 'phonepe_testing_client_version',
+                'data_type' => 3,    // int
+                'default' => null,
+                'placeholder' => __tr('Client Version'),
+                'hide_value' => false,
+                'ignore_empty' => false,
+            ],
+            'phonepe_live_client_id' => [
+                'key' => 'phonepe_live_client_id',
+                'data_type' => 1,    // string
+                'default' => '',
+                'placeholder' => __tr('Live Shop Id'),
+                'hide_value' => false,
+                'ignore_empty' => false,
+            ],
+            'phonepe_live_secret_key' => [
+                'key' => 'phonepe_live_secret_key',
+                'data_type' => 1,    // string
+                'default' => '',
+                'placeholder' => __tr('Live secret key'),
+                'hide_value' => false,
+                'ignore_empty' => false,
+            ],
+            'phonepe_live_client_version' => [
+                'key' => 'phonepe_live_client_version',
+                'data_type' => 3,    // int
+                'default' => null,
+                'placeholder' => __tr('Client Version'),
+                'hide_value' => false,
+                'ignore_empty' => false,
+            ],
+        ],
+        // PhonePe End
         'pusher' => [
             'broadcast_connection_driver' => [
                 'key' => 'broadcast_connection_driver',

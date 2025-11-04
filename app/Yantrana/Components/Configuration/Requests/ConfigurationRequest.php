@@ -146,9 +146,10 @@ class ConfigurationRequest extends BaseRequest
                 break;
             case 'razorpay_payment':
                 $enableRazorpay = Arr::get($inputData, 'enable_razorpay');
+                $enableRazorpaySubscription = Arr::get($inputData, 'enable_razorpay_subscription');
 
                 // check if paypal payment enable
-                if ($enableRazorpay) {
+                if ($enableRazorpay or $enableRazorpaySubscription) {
                     $razorpayTestMode = $inputData['use_test_razorpay'];
                     // Check if paypal test mode is enable
                     if ($razorpayTestMode and ! $inputData['razorpay_test_keys_exist']) {
@@ -164,48 +165,71 @@ class ConfigurationRequest extends BaseRequest
                     }
                 }
                 break;
-                case 'paystack_payment':
-                    $enablePaypal = Arr::get($inputData, 'enable_paystack');
+            case 'paystack_payment':
+                $enablePaypal = Arr::get($inputData, 'enable_paystack');
+
+                // check if paypal payment enable
+                if ($enablePaypal) {
+                    $paypalTestMode = $inputData['use_test_paystack_checkout'];
+                    // Check if paypal test mode is enable
+                    if ($paypalTestMode and ! $inputData['paystack_test_keys_exist']) {
+                        $rules = [
+                            'paystack_checkout_testing_secret_key' => 'required',
+                            'paystack_checkout_testing_publishable_key' => 'required',
+                        ];
+                    } elseif (! $paypalTestMode and ! array_get($inputData, 'paystack_live_keys_exist')) {
+                        $rules = [
+                            'paystack_checkout_live_secret_key' => 'required',
+                            'paystack_checkout_live_publishable_key' => 'required',
+                        ];
+                    }
+                }
+                break;
+                case 'yoomoney_payment':
+                    $enablePaypal = Arr::get($inputData, 'enable_yoomoney');
     
                     // check if paypal payment enable
                     if ($enablePaypal) {
-                        $paypalTestMode = $inputData['use_test_paystack_checkout'];
+                        $paypalTestMode = $inputData['use_test_yoomoney'];
                         // Check if paypal test mode is enable
-                        if ($paypalTestMode and ! $inputData['paystack_test_keys_exist']) {
+                        if ($paypalTestMode and ! $inputData['yoomoney_test_keys_exist']) {
                             $rules = [
-                                'paystack_checkout_testing_secret_key' => 'required',
-                                'paystack_checkout_testing_publishable_key' => 'required',
+                                'yoomoney_testing_shop_id' => 'required',
+                                'yoomoney_testing_secret_key' => 'required',
                             ];
-                        } elseif (! $paypalTestMode and ! array_get($inputData, 'paystack_live_keys_exist')) {
+                        } elseif (! $paypalTestMode and ! array_get($inputData, 'yoomoney_live_keys_exist')) {
                             $rules = [
-                                'paystack_checkout_live_secret_key' => 'required',
-                                'paystack_checkout_live_publishable_key' => 'required',
+                                'yoomoney_live_shop_id' => 'required',
+                                'yoomoney_live_secret_key' => 'required',
+                                'yoomoney_live_vat_id' => 'required'
+                                
                             ];
                         }
                     }
                     break;
-                    case 'yoomoney_payment':
-                        $enablePaypal = Arr::get($inputData, 'enable_yoomoney');
+                    case 'phonepe_payment':
+                        $enablePhonePe = Arr::get($inputData, 'enable_phonepe');
         
-                        // check if paypal payment enable
-                        if ($enablePaypal) {
-                            $paypalTestMode = $inputData['use_test_yoomoney'];
-                            // Check if paypal test mode is enable
-                            if ($paypalTestMode and ! $inputData['yoomoney_test_keys_exist']) {
+                        // check if phonepe payment enable
+                        if ($enablePhonePe) {
+                            $phonePeTestMode = $inputData['use_test_phonepe'];
+                            // Check if phonepe test mode is enable
+                            if ($phonePeTestMode and ! $inputData['phonepe_test_keys_exist']) {
                                 $rules = [
-                                    'yoomoney_testing_shop_id' => 'required',
-                                    'yoomoney_testing_secret_key' => 'required',
+                                    'phonepe_testing_client_id' => 'required',
+                                    'phonepe_testing_secret_key' => 'required',
+                                    'phonepe_testing_client_version' => 'required'
                                 ];
-                            } elseif (! $paypalTestMode and ! array_get($inputData, 'yoomoney_live_keys_exist')) {
+                            } elseif (!$phonePeTestMode and !array_get($inputData, 'phonepe_live_keys_exist')) {
                                 $rules = [
-                                    'yoomoney_live_shop_id' => 'required',
-                                    'yoomoney_live_secret_key' => 'required',
+                                    'phonepe_live_client_id' => 'required',
+                                    'phonepe_live_secret_key' => 'required',
+                                    'phonepe_live_client_version' => 'required'
                                     
                                 ];
                             }
                         }
-                        break;
-
+                    break;
             case 'email':
 
                 //driver specific rules

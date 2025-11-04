@@ -27,8 +27,9 @@ class VendorAccessCheckpost
             }
             return redirect()->route('home');
         }
+        
         // check if user has permissions to access area
-        if ((hasVendorAccess() === false) and (hasVendorUserAccess() === false)) {
+        if ((hasVendorAccess() === false) and (hasVendorUserAccess() === false) and getUserAuthInfo('role_id') != 1) {
             if ($request->ajax()) {
                 return __apiResponse([
                     'message' => __tr('Restricted Area'),

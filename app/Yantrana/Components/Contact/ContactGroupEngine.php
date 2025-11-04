@@ -31,6 +31,7 @@ use App\Yantrana\Components\Contact\Interfaces\ContactGroupEngineInterface;
 use App\Yantrana\Components\Contact\Repositories\ContactGroupRepository;
 use App\Yantrana\Components\Campaign\Repositories\CampaignRepository;
 use App\Yantrana\Components\Contact\Repositories\GroupContactRepository;
+use App\Yantrana\Components\Contact\Repositories\ContactRepository;
 
 class ContactGroupEngine extends BaseEngine implements ContactGroupEngineInterface
 {
@@ -50,6 +51,11 @@ class ContactGroupEngine extends BaseEngine implements ContactGroupEngineInterfa
     protected $groupContactRepository;
 
     /**
+     * @var ContactRepository - Contact Repository
+     */
+    protected $contactRepository;
+
+    /**
      * Constructor
      *
      * @param  ContactGroupRepository  $contactGroupRepository  - ContactGroup Repository
@@ -58,11 +64,13 @@ class ContactGroupEngine extends BaseEngine implements ContactGroupEngineInterfa
     public function __construct(
         ContactGroupRepository $contactGroupRepository,
         CampaignRepository $campaignRepository,
-        GroupContactRepository $groupContactRepository
+        GroupContactRepository $groupContactRepository,
+        ContactRepository $contactRepository
     ) {
         $this->contactGroupRepository = $contactGroupRepository;
         $this->campaignRepository = $campaignRepository;
         $this->groupContactRepository = $groupContactRepository;
+        $this->contactRepository = $contactRepository;
     }
 
     /**
@@ -251,6 +259,20 @@ class ContactGroupEngine extends BaseEngine implements ContactGroupEngineInterfa
                     }
                 }
             }
+            // Check if request user try to create group from contact advance filter
+            if (!__isEmpty(data_get($inputData, 'request_from') == 'CONTACT_ADVANCE_FILTER')) {
+                $filteredContactData = $this->contactRepository->fetchContactDataTableSource(null, null, false);
+                if (!__isEmpty($filteredContactData)) {
+                    $contactIds = $filteredContactData->pluck('_id');
+                    foreach ($contactIds as $contactId) {
+                        $groupContactInsertData[] = [
+                            'contact_groups__id' => $newGroup->_id,
+                            'contacts__id' => $contactId
+                        ];
+                    }
+                }
+            }
+
             if (!__isEmpty($groupContactInsertData)) {
                 foreach (array_chunk($groupContactInsertData, 500) as $groupContactInsertDataChunk) {
                     $this->groupContactRepository->storeItAll($groupContactInsertDataChunk);

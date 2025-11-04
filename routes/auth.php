@@ -19,6 +19,16 @@ Route::group([
     Route::group([
         'middleware' => ['guest'],
     ], function () {
+        // Two factor challenge
+        Route::get('/two-factor-challenge-view', [
+            AuthController::class,
+            'showTwoFactorChallengeView',
+        ])->name('auth.two_factor_challenge.view');
+        // Two factor authentication recovery view
+        Route::get('/two-factor-challenge-recovery-view', [
+            AuthController::class,
+            'showTwoFactorChallengeRecoveryView',
+        ])->name('auth.two_factor_recovery.view');
         // login page
         Route::get('/login', [
             AuthController::class,

@@ -440,7 +440,7 @@
         <!-- Razorpay start -->
         <fieldset class="lw-fieldset mb-3" x-data="{panelOpened:false}" x-cloak>
             <legend class="lw-fieldset-legend" @click="panelOpened = !panelOpened">
-                <img height="20" src="{{ asset('imgs/razorpay.png') }}" alt="<?= __tr('Razorpay') ?>">
+                <img height="20" src="{{ asset('imgs/razorpay.png') }}" alt="<?= __tr('Razorpay') ?>">                
                 <small class="text-muted">{{  __tr('Click to expand/collapse') }}</small>
             </legend>
             <!-- Payment Setting Form -->
@@ -477,6 +477,7 @@
                         <p class="mt-3 ml-3"><?= __tr('You can create Razorpay credential') ?><a href="https://dashboard.razorpay.com/" target="_blank">{{  __tr('click here') }}</a>.</p>
 
                     </div>
+
                     <!-- / Enable razorpay Checkout field -->
                     <span id="lwPayRazorpayContainer">
                         <!-- use testing razorpay checkout input fieldset -->
@@ -1058,6 +1059,185 @@
         </fieldset>
         <!-- /yoomoney end -->
 
+        <!-- phonepe start -->
+        <fieldset class="lw-fieldset mb-3" x-data="{panelOpened:false}" x-cloak>
+            <legend class="lw-fieldset-legend" @click="panelOpened = !panelOpened">
+                <img height="50" src="{{ asset('imgs/phonepe.png') }}" alt="<?= __tr('PhonePe') ?>">
+                <small class="text-muted">{{  __tr('Click to expand/collapse') }}</small>
+            </legend>
+            <!-- Payment Setting Form -->
+            <form x-show="panelOpened" class="lw-ajax-form lw-form" method="post" data-callback="onPaymentGatewayFormCallback"
+                action="<?= route('manage.configuration.write', ['pageType' => 'phonepe_payment']) ?>">
+                <!-- input field body -->
+                <div class="form-group mt-2">
+
+                    <!-- Enable PhonePe Checkout field -->
+                    <div class="form-group pt-3">
+                        <label for="lwEnablePhonePe">
+                            <input type="hidden" name="enable_phonepe" value="0">
+                            <input type="checkbox" id="lwEnablePhonePe" data-lw-plugin="lwSwitchery" name="enable_phonepe"
+                                <?= getAppSettings('enable_phonepe')==true ? 'checked' : '' ?>>
+                            <?= __tr('Enable PhonePe') ?>
+                        </label>
+                    </div>
+                    <div>
+                        <p class="mt-3 ml-3"><?= __tr('You can create PhonePe credential here - ') ?><a href="https://business.phonepe.com/register?utm_source=homepage_banner_pg_pfb_website" target="_blank">{{  __tr('click here') }}</a></p>
+
+                    </div>
+                    <!-- / Enable PhonePe Checkout field -->
+                    <span id="lwPhonePeContainer">
+                        <!-- use testing PhonePe checkout input fieldset -->
+                        <fieldset class="lw-fieldset mb-3">
+                            <!-- use testing input radio field -->
+                        <legend class="lw-fieldset-legend">
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" id="lwUsePhonePeTest"  name="use_test_phonepe"
+                                    class="custom-control-input" value="1" <?= getAppSettings('use_test_phonepe')==true
+                                    ? 'checked' : '' ?>>
+                                <label class="custom-control-label" for="lwUsePhonePeTest">
+                                    <?= __tr('Use Testing') ?>
+                                </label>
+                            </div>
+                        </legend>
+                        <!-- /use testing input radio field -->
+
+                        <!-- show after added testing PhonePe information -->
+                        <div class="btn-group" id="lwTestPhonePeExists">
+                            <button type="button" disabled="true" class="btn btn-success lw-btn">
+                                <?= __tr('Testing PhonePe keys are installed.') ?>
+                            </button>
+                            <button type="button" class="btn btn-light lw-btn" id="lwUpdateTestPhonePe">
+                                <?= __tr('Update') ?>
+                            </button>
+                        </div>
+                        <!-- show after added testing PhonePe information -->
+
+                        <!-- PhonePe test secret key exists hidden field -->
+                        <input type="hidden" name="phonepe_test_keys_exist" id="lwPhonePeTestKeysExist"
+                        value="<?= getAppSettings('phonepe_testing_secret_key') ?>" />
+                        <!-- PhonePe test secret key exists hidden field -->
+
+                    <div id="lwTestPhonePeInputField">
+                        <!-- Testing Publish Key -->
+                        <div class="mb-3">
+                            <label for="lwPhonePeTestPublishKey">
+                                <?= __tr('Client Id') ?>
+                            </label>
+                            <input type="text" class="form-control form-control-user" value=""
+                                id="lwPhonePeTestPublishKey" name="phonepe_testing_client_id"
+                                placeholder="<?= __tr('Client Id') ?>">
+                        </div>
+                        <!-- / Testing Publish Key -->
+                        <!-- Testing Secret Key Key -->
+                        <div class="mb-3">
+                            <label for="lwPhonePeTestSecretKey">
+                                <?= __tr('Secret Key') ?>
+                            </label>
+                            <input type="text" class="form-control form-control-user" value=""
+                                id="lwPhonePeTestSecretKey" name="phonepe_testing_secret_key"
+                                placeholder="<?= __tr('Secret Key') ?>">
+                        </div>
+                        <!-- / Testing Secret Key Key -->
+                        <!-- Testing Client Version -->
+                        <div class="mb-3">
+                            <label for="lwPhonePeTestClientVersion">
+                                <?= __tr('Client Version') ?>
+                            </label>
+                            <input type="text" class="form-control form-control-user" value=""
+                                id="lwPhonePeTestClientVersion" name="phonepe_testing_client_version"
+                                placeholder="<?= __tr('Client Version') ?>">
+                        </div>
+                        <!-- / Testing Client Version -->
+                    </div>
+                </fieldset>
+                <!-- /use testing PhonePe input fieldset -->
+
+                <!-- use live PhonePe input fieldset -->
+                <fieldset class="lw-fieldset mb-3">
+                    <!-- use live input radio field -->
+                    <legend class="lw-fieldset-legend">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" id="lwUsePhonePeCheckoutLive" name="use_test_phonepe"
+                                class="custom-control-input" value="0" <?= getAppSettings('use_test_phonepe')==false
+                                ? 'checked' : '' ?>>
+                            <label class="custom-control-label" for="lwUsePhonePeCheckoutLive">
+                                <?= __tr('Use Live') ?>
+                            </label>
+                        </div>
+                    </legend>
+                    <!-- /use live input radio field -->
+                    @if($isExtendedLicence)
+                    <!-- show after added Live PhonePe information -->
+                    <div class="btn-group" id="lwLivePhonePeCheckoutExists">
+                        <button type="button" disabled="true" class="btn btn-success lw-btn">
+                            <?= __tr('Live PhonePe keys are installed.') ?>
+                        </button>
+                        <button type="button" class="btn btn-light lw-btn" id="lwUpdateLivePhonePeCheckout">
+                            <?= __tr('Update') ?>
+                        </button>
+                    </div>
+                    <!-- show after added Live PhonePe information -->
+
+                    <!-- PhonePe Live secret key exists hidden field -->
+                    <input type="hidden" name="phonepe_live_keys_exist" id="lwPhonePeLiveKeysExist"
+                    value="<?= getAppSettings('phonepe_live_secret_key') ?>" />
+                    <!-- PhonePe Live secret key exists hidden field -->
+
+                    <div id="lwLivePhonePeInputField">
+                        <!-- Live Publish Key -->
+                        <div class="mb-3">
+                            <label for="lwPhonePeLivePublishKey">
+                                <?= __tr('Client Id') ?>
+                            </label>
+                            <input type="text" class="form-control form-control-user" value=""
+                                id="lwPhonePeLivePublishKey" name="phonepe_live_client_id"
+                                placeholder="<?= __tr('Client Id') ?>">
+                        </div>
+                        <!-- / Live Client Key -->
+                        <!-- Live Secret Key Key -->
+                        <div class="mb-3">
+                            <label for="lwPhonePeLiveSecretKey">
+                                <?= __tr('Secret Key') ?>
+                            </label>
+                            <input type="text" class="form-control form-control-user" value=""
+                                id="lwPhonePeLiveSecretKey" name="phonepe_live_secret_key"
+                                placeholder="<?= __tr('Secret Key') ?>">
+                        </div>
+                        <!-- / Live Secret Key Key -->
+
+                        <!-- Live Client Version Key -->
+                        <div class="mb-3">
+                            <label for="lwPhonePeLiveClientKey">
+                                <?= __tr('Client Version') ?>
+                            </label>
+                            <input type="text" class="form-control form-control-user" value="1"
+                                id="lwPhonePeLiveClientKey" name="phonepe_live_client_version"
+                                placeholder="<?= __tr('Client Version') ?>">
+                        </div>
+                        <!-- / Live Client Version Key -->
+                    </div>
+                    @else
+                    <div class="alert alert-danger">
+                        {{  __tr('Extended licence required to use live keys') }}
+                    </div>
+                    @endif
+                </fieldset>
+                <!-- /use live PhonePe checkout input fieldset -->
+            </span>
+            <hr class="my-4">
+            <div class="form-group">
+                        <!-- Update Button -->
+                <a href class="lw-ajax-form-submit-action btn btn-primary btn-user lw-btn-block-mobile">
+                    <?= __tr('Save') ?>
+                </a>
+                <!-- /Update Button -->
+                </div>
+            </div>
+            <!-- / input field body -->
+            </form>
+        </fieldset>
+        <!-- /PhonePe end -->
+
         <!-- For one time Payment Only -->
         @stack('oneTimeGatewaySettingStackEnd')
         <!-- /For one time Payment Only -->
@@ -1529,6 +1709,98 @@
 	});
 	/*********** YooMoney Live Keys setting end here ***********/
     /**********====================== /YooMoney chceckout ============================**********/
+
+    /*********** PhonePe Enable / Disable Checkout start here ***********/
+      var isPhonePeCheckoutEnable = $('#lwEnablePhonePe').is(':checked'),
+		isUsePhonePeCheckoutTest = $("#lwUsePhonePeTest").is(':checked'),
+		isUsePhonePeLive = $("#lwUsePhonePeCheckoutLive").is(':checked');
+
+	if (!isPhonePeCheckoutEnable) {
+		$('#lwPhonePeContainer').addClass('lw-disabled-block-content d-none');
+	}
+	$("#lwEnablePhonePe").on('change', function(event) {
+		isPhonePeCheckoutEnable = $(this).is(":checked");
+		//check is enable false then add class
+		if (!isPhonePeCheckoutEnable) {
+			$("#lwPhonePeContainer").addClass('lw-disabled-block-content d-none');
+			//else remove class
+		} else {
+			$("#lwPhonePeContainer").removeClass('lw-disabled-block-content d-none');
+		}
+	});
+
+	//check PhonePe test mode is true then disable PhonePe live input field
+	if (isUsePhonePeCheckoutTest) {
+		$('#lwUpdateLivePhonePeCheckout').attr('disabled', true);
+		$('#lwLivePhonePeInputField').addClass('lw-disabled-block-content');
+		//check PhonePe test mode is false then disable PhonePe test input field
+	} else if (isUsePhonePeLive) {
+		$('#lwUpdateTestPhonePe').attr('disabled', true);
+		$('#lwTestPhonePeInputField').addClass('lw-disabled-block-content');
+	}
+
+	//check PhonePe test mode is true on change
+	//then disable PhonePe live input field
+	$("#lwUsePhonePeTest").on('change', function(event) {
+		var isUsePhonePeCheckoutTest = $(this).is(':checked');
+		if (isUsePhonePeCheckoutTest) {
+			$('#lwUpdateLivePhonePeCheckout').attr('disabled', true);
+			$('#lwUpdateTestPhonePe').attr('disabled', false);
+			$('#lwTestPhonePeInputField').removeClass('lw-disabled-block-content');
+			$('#lwLivePhonePeInputField').addClass('lw-disabled-block-content');
+		}
+	});
+
+	//check PhonePe test mode is false on change
+	//then disable PhonePe test input field
+	$("#lwUsePhonePeCheckoutLive").on('change', function(event) {
+		var isUsePhonePeLive = $(this).is(':checked');
+		if (isUsePhonePeLive) {
+			$('#lwUpdateTestPhonePe').attr('disabled', true);
+			$('#lwUpdateLivePhonePeCheckout').attr('disabled', false);
+			$('#lwLivePhonePeInputField').removeClass('lw-disabled-block-content');
+			$('#lwTestPhonePeInputField').addClass('lw-disabled-block-content');
+		}
+	});
+	/*********** PhonePe Enable / Disable Checkout end here ***********/
+    //===================================================================
+    /*********** PhonePe Testing Keys setting start here ***********/
+	var isTestPhonePeKeysInstalled = "<?= getAppSettings('phonepe_testing_client_id') ?>",
+    lwTestPhonePeInputField = $('#lwTestPhonePeInputField'),
+    lwTestPhonePeExists = $('#lwTestPhonePeExists');
+
+	// Check if test PhonePe keys are installed
+	if (isTestPhonePeKeysInstalled) {
+		lwTestPhonePeInputField.hide();
+	} else {
+		lwTestPhonePeExists.hide();
+	}
+	// Update PhonePe checkout testing keys
+	$('#lwUpdateTestPhonePe').on('click', function() {
+		$("#lwPhonePeTestKeysExist").val(0);
+		lwTestPhonePeInputField.show();
+		lwTestPhonePeExists.hide();
+	});
+	/*********** PhonePe Testing Keys setting end here ***********/
+
+	/*********** PhonePe Live Keys setting start here ***********/
+	var isLivePhonePePublishKeysInstalled = "<?= getAppSettings('phonepe_live_client_id') ?>",
+    lwLivePhonePeInputField = $('#lwLivePhonePeInputField'),
+    lwLivePhonePeCheckoutExists = $('#lwLivePhonePeCheckoutExists');
+
+	// Check if test PhonePe keys are installed
+	if (isLivePhonePePublishKeysInstalled) {
+		lwLivePhonePeInputField.hide();
+	} else {
+		lwLivePhonePeCheckoutExists.hide();
+	}
+	// Update PhonePe checkout testing keys
+	$('#lwUpdateLivePhonePeCheckout').on('click', function() {
+		$("#lwPhonePeLiveKeysExist").val(0);
+		lwLivePhonePeInputField.show();
+		lwLivePhonePeCheckoutExists.hide();
+	});
+	/*********** PhonePe Live Keys setting end here ***********/
 
     //on payment setting success callback function
 	window.onPaymentGatewayFormCallback = function(responseData) {

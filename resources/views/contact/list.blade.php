@@ -159,10 +159,20 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
                         :label="__tr('Mobile Number')" name="phone_number" minlength="9"
                         :helpText="__tr('Number should be with country code without 0 or +')" required="true" maxlength="20" />
                     <!-- /Phone_Number -->
+                    
                     <!-- Language Code -->
-                    <x-lw.input-field type="text" id="lwLanguageCodeField" data-form-group-class=""
-                        :label="__tr('Language Code')" name="language_code" />
+                    <?php $languages = include app_path('Yantrana/Support/languages.php'); ?>
+                    <label for="lwSelectLanguage"><?= __tr('Language') ?></label>
+                    <select id="lwSelectLanguage" name="language_code" required>
+                        @if(!__isEmpty($languages))
+                            <option value="">{{ __tr('Select Language') }}</option>
+                            @foreach($languages as $key => $language)
+                            <option value="<?= $language['code'] ?>" required><?= $language['language'] ?> (<?= $language['code'] ?>)</option>
+                            @endforeach
+                        @endif
+                    </select>
                     <!-- /Language Code -->
+
                     <!-- Email -->
                     <x-lw.input-field type="email" id="lwEmailField" data-form-group-class="" :label="__tr('Email')"
                         name="email" />
@@ -313,21 +323,28 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
                     $('.dataTables_wrapper table>tbody input[type=checkbox].lw-checkboxes:checked').trigger('click');
                     this.isSelectedAll = false;
                 }
-            },deleteSelectedContacts() {
-                var that = this;
-                showConfirmation('{{ __tr('Are you sure you want to delete all selected contacts?') }}', function() {
+            },deleteSelectedContacts(groupUid) {
+                var that = this,
+                    confirmationMessage = groupUid 
+                        ? '{{ __tr('Are you sure you want to remove selected contacts from this group?') }}' 
+                        : '{{ __tr('Are you sure you want to delete all selected contacts?') }}';
+                showConfirmation(confirmationMessage, function() {
                     __DataRequest.post('{{ route('vendor.contacts.selected.write.delete') }}', {
-                        'selected_contacts' : that.selectedContacts
+                        'selected_contacts' : that.selectedContacts,
+                        'group_uid': groupUid
                     });
                 }, {
                     confirmButtonText: '{{ __tr('Yes') }}',
                     cancelButtonText: '{{ __tr('No') }}',
                     type: 'error'
                 });
-            }, deleteAllContacts() {
-                var that = this;
-                showConfirmation('{{ __tr('WARNING - All your contacts will be deleted permanently, Are you sure you want to delete all your contacts?') }}', function() {
-                    __DataRequest.post('{{ route('vendor.contacts.all.write.delete') }}', {});
+            }, deleteAllContacts(groupId) {
+                var that = this,
+                    confirmationMessage = groupId ? '#lwRemoveAllContactsFromGroup-template' : '#lwDeleteAllContacts-template';
+                showConfirmation(confirmationMessage, function() {
+                    __DataRequest.post('{{ route('vendor.contacts.all.write.delete') }}', {
+                        'group_id': groupId   
+                    });
                 }, {
                     confirmButtonText: '{{ __tr('Yes') }}',
                     cancelButtonText: '{{ __tr('No') }}',
@@ -357,14 +374,68 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
                     {{ __tr('Bulk Actions') }}
                 </button>
                 <div class="dropdown-menu">
-                    <a class="dropdown-item" @click.prevent="deleteSelectedContacts" href="#">{{ __tr('Delete Selected Contacts') }}</a>
+                    <a class="dropdown-item" @click.prevent="deleteSelectedContacts('<?= $groupUid ?>')" href="#">
+                        {{ $groupUid ? __tr('Remove Selected Contacts') : __tr('Delete Selected Contacts') }}
+                    </a>
                     <a class="dropdown-item" data-toggle="modal" data-target="#lwAssignGroups" href="#">{{ __tr('Assign Group to Selected Contacts') }}</a>
                     <a class="dropdown-item lw-ajax-link-action" data-toggle="modal" data-target="#lwAssignTeamMember" data-response-template="#lwAssignTeamMemberBody" href="{{ route('vendor.team_member.read.list', ['contactIdOrUid' => 'bulk_action']) }}">{{ __tr('Assign Team Member') }}</a>
                 </div>
             </div>
+            <!-- Delete All Contact Button -->
+            <button class="btn btn-danger btn-sm my-2" @click.prevent="deleteAllContacts('<?= $groupUid ?>')">
+                @if($groupUid)
+                    <i class="fa fa-user-times"></i> {{ __tr('Remove Group Contact') }}
+                @else
+                    <i class="fa fa-trash"></i> {{ __tr('Delete All Contact') }}
+                @endif
+            </button>
+            <!-- /Delete All Contact Button -->
+
             @if(!$groupUid)
-            <button class="btn btn-danger btn-sm my-2" @click.prevent="deleteAllContacts"><i class="fa fa-trash"></i> {{ __tr('Delete All Contact')}}</button>
+            <span class="mb-4" x-data="{ isFilterApplied: false, contactCount: 0, countString: '' }">
+                <div class="text-right mt-1" role="group" :class="isFilterApplied ? 'btn-group' : '' ">
+                    <!-- Contact Filter Dialog Button -->
+                    <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Contact Filters') }}" class="lw-btn btn btn-secondary btn-sm lw-ajax-link-action lw-filter-and-clear-btn-z-index" data-response-template="#lwContactFilterBody" href="{{ route('vendor.contact.read.filter_support_data') }}"  data-toggle="modal" data-target="#lwContactFilter"><i class="fas fa-filter"></i> {{  __tr('Contact Filters') }}</a>
+                    <!-- /Contact Filter Dialog Button -->
+
+                    <!-- Clear Filter Button -->
+                    <a x-show="isFilterApplied" type="button" class="lw-btn btn btn-danger btn-sm lw-ajax-link-action lw-filter-and-clear-btn-z-index" data-method="post" x-bind:data-post-data="toJsonString({'clear_filter': true})" href="<?= route('vendor.contact.write.store_contact_filter') ?>" data-callback="__Utils.viewReload">
+                        {{ __tr('Clear Filter') }}
+                    </a>
+                    <!-- /Clear Filter Button -->
+                </div>
+
+                <fieldset class="mb-3" x-show="isFilterApplied">
+                    <legend class="bg-white"><h2>{{ __tr('Advanced Filter') }}</h2></legend>
+                    <span x-show="contactCount">
+                        <div x-text="countString"></div>
+                        {{  __tr('Data has been filtered based on advanced filter, you can create a new group using this result.') }}
+                        <hr class="lw-filter-message-hr">
+                        
+                        <div class="btn-group" role="group">
+                            <!-- Contact Filter Dialog Button -->
+                            <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update Filter') }}" class="lw-btn btn btn-dark btn-sm lw-ajax-link-action" data-response-template="#lwContactFilterBody" href="{{ route('vendor.contact.read.filter_support_data') }}"  data-toggle="modal" data-target="#lwContactFilter"><i class="fas fa-filter"></i> {{  __tr('Update Filter') }}</a>
+                            <!-- /Contact Filter Dialog Button -->
+
+                            <!-- Create New Contact Group Button -->
+                            <button type="button" class="lw-btn btn btn-primary btn-sm" data-pre-callback="appFuncs.clearContainer" data-toggle="modal" data-target="#lwAddNewGroup">
+                                {{ __tr('Create New Contact Group') }}
+                            </button>
+                            <!-- /Create New Contact Group Button -->
+                        </div>
+                    </span>
+                    <span x-show="!contactCount">
+                        {{  __tr('No contacts were found with the current filter, but you can update the filter to retrieve a list of contacts.') }}
+                        <hr class="lw-filter-message-hr">
+                        
+                        <!-- Contact Filter Dialog Button -->
+                        <a data-pre-callback="appFuncs.clearContainer" title="{{  __tr('Update Filter') }}" class="lw-btn btn btn-dark btn-sm lw-ajax-link-action" data-response-template="#lwContactFilterBody" href="{{ route('vendor.contact.read.filter_support_data') }}"  data-toggle="modal" data-target="#lwContactFilter"><i class="fas fa-filter"></i> {{  __tr('Update Filter') }}</a>
+                        <!-- /Contact Filter Dialog Button -->
+                    </span>
+                </fieldset>
+            </span>
             @endif
+
             <!-- Assign Groups to the selected contacts -->
             <x-lw.modal id="lwAssignGroups" :header="__tr('Assign Groups to Selected Contacts')" :hasForm="true"
                 data-pre-callback="appFuncs.clearContainer">
@@ -430,6 +501,43 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
                 </script>
             </x-lw.modal>
             <!-- Assign Team Member Modal -->
+
+            <!-- Contact filter modal -->
+            @include('contact.contact-filter')
+            <!-- /Contact filter modal -->
+
+            <!-- Add New Group Modal -->
+            <x-lw.modal id="lwAddNewGroup" :header="__tr('Add New Group')" :hasForm="true">
+                <!--  Add New Group Form -->
+                <x-lw.form id="lwAddNewGroupForm" :action="route('vendor.contact.group.write.create')"
+                    :data-callback-params="['modalId' => '#lwAddNewGroup', 'datatableId' => '#lwContactList']"
+                    data-callback="appFuncs.modelSuccessCallback">
+                    <!-- form body -->
+                    <div class="lw-form-modal-body">
+                        <input type="hidden" name="request_from" value="CONTACT_ADVANCE_FILTER">
+
+                        <!-- form fields form fields -->
+                        <!-- Title -->
+                        <x-lw.input-field type="text" id="lwTitleField" data-form-group-class="" :label="__tr('Title')" name="title" required="true" />
+                        <!-- /Title -->
+                        <!-- Description -->
+                        <div class="form-group">
+                            <label for="lwDescriptionField">{{ __tr('Description') }}</label>
+                            <textarea cols="10" rows="3" id="lwDescriptionField" class="lw-form-field form-control"
+                                placeholder="{{ __tr('Description') }}" name="description"></textarea>
+                        </div>
+                        <!-- /Description -->
+                    </div>
+                    <!-- form footer -->
+                    <div class="modal-footer">
+                        <!-- Submit Button -->
+                        <button type="submit" class="btn btn-primary">{{ __tr('Submit') }}</button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">{{ __tr('Close') }}</button>
+                    </div>
+                </x-lw.form>
+                <!--/  Add New Group Form -->
+            </x-lw.modal>
+            <!--/ Add New Group Modal -->
             
             <x-lw.datatable data-page-length="100" id="lwContactList" :url="route('vendor.contact.read.list', [
                 'groupUid' => $groupUid
@@ -507,6 +615,20 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
             <p>{{ __tr('You want to unblock this Contact?') }}</p>
         </script>
         <!-- /Contact unblock template -->
+
+        <!-- Contacts remove from group -->
+        <script type="text/template" id="lwRemoveAllContactsFromGroup-template">
+            <h2>{{ __tr('Are You Sure!') }}</h2>
+            <p>{{ __tr('All contacts in this group will be removed. Are you sure you want to proceed?') }}</p>
+        </script>
+        <!-- /Contacts remove from group -->
+
+         <!-- Delete All Contact Template -->
+        <script type="text/template" id="lwDeleteAllContacts-template">
+            <h2>{{ __tr('Are You Sure!') }}</h2>
+            <p>{{ __tr('All your contacts will be deleted permanently, Are you sure you want to delete all your contacts??') }}</p>
+        </script>
+        <!-- /Delete All Contact Template -->
     </div>
 </div>
 <script>
@@ -522,7 +644,7 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
 @push('appScripts')
 <script>
 (function($) {
-    'use strict';
+    'use strict';    
     window.onUpdateContactDetails = function(responseData, callbackParams) {
         appFuncs.modelSuccessCallback(responseData, callbackParams);
     };
@@ -551,6 +673,20 @@ $groupDescription = $groupUid ? $currentGroup->description : '';
             window.onImportProcessUpdate(true);
         },300);
     };
+    $('#lwSelectLanguage').selectize({
+        create: true,
+        valueField: 'code',
+        labelField: 'language',
+        searchField: ['language', 'code']
+    });
+
+    window.clearFilter = function () {
+        let filterForm = $('#lwContactFilterForm');
+        let formData = filterForm.serializeArray();
+        filterForm.append('<input type="hidden" name="clear_filter" value="true">');
+        filterForm.submit();
+    }
+    
 })(jQuery);
 </script>
 @endpush

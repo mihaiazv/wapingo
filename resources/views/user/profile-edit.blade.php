@@ -9,13 +9,8 @@
 
 <div class="container-fluid mt-lg--1"> 
     <div class="row">
-        <div class="col-xl-12 order-xl-1">
-            <div class="card shadow col-xl-6">
-                <div class="card-header">
-                    <div class="row align-items-center">
-                        <h1 class="mb-0">{{ __tr('Edit Profile') }}</h1>
-                    </div>
-                </div>
+        <div class="col-xl-6 order-xl-1">
+            <div class="card shadow col-xl-12">
                 <div class="card-body">
                     <x-lw.form :action="route('user.profile.update')">
                         <h3 class="text-dark">{{ __tr('User Information') }}</h3>
@@ -66,7 +61,7 @@
                 </div>
 
             </div>
-            <div class="card col-xl-6 shadow mt-4">
+            <div class="card col-xl-12 shadow mt-4">
                 <div class="card-body">
                     <x-lw.form class="" data-secured="true" method="post"
                         action="{{ route('auth.password.update.process') }}" autocomplete="off">
@@ -123,6 +118,128 @@
                 </div>
             </div>
         </div>
+        <div class="col-xl-6 order-xl-1">
+             <div class="card shadow col-xl-12">
+                <div class="card-body">
+                     <h3 class="text-dark">{{ __tr('Two Factor Authentication') }}</h3>
+                    <hr class="my-3">
+                    @if (!auth()->user()->two_factor_secret)
+                    <p class="card-text">{{ __tr('Click the button below to display the QR code and activate Two-Factor Authentication.') }}</p>
+                    @endif
+                    <form method="POST" action="{{ route('two-factor.enable') }}">
+                        @csrf
+                        @if (!auth()->user()->two_factor_secret)
+                            @if (isDemo() and isDemoVendorAccount())
+                                <div class="alert alert-warning">
+                                    {{ __tr('Two Factor Auth feature is disabled in demo account.') }}
+                                </div>
+                            @else
+                            <button type="submit" class="btn btn-success mt-4">{{ __tr('Enable') }}</button>
+                            @endif
+                        @else
+                        <div class="text-right">
+                            {{-- Button for disable 2FA --}}
+                          <button type="submit" class="btn btn-danger">{{ __tr('Disable') }}</button>
+                            {{-- /Button for disable 2FA --}}
+                        </div>
+                            <div class="mb-4 font-medium text-sm">
+                                @method('DELETE')
+                                <div class="row">
+                                    <div class="col-lg-12">
+                                                              @if(auth()->user()->two_factor_confirmed_at)
+                                            <div class="alert alert-success my-3 text-center">
+                                                <i class="fa fa-user-shield fa-6x"></i>
+                                              <p class="my-3">
+                                                {{ __tr('Two Factor Auth has been setup and activated on __activatedAt__', [
+                                                    '__activatedAt__' => formatDateTime(auth()->user()->two_factor_confirmed_at)
+                                                ]) }}
+                                              </p>
+                                            </div>
+                                            @endif
+                                        @if(!auth()->user()->two_factor_confirmed_at)
+                                        <fieldset>
+                                            <legend>{{ __tr('Step 1 - Scan QR Code') }}</legend>
+                                            <p>{!! 
+                            __tr('Scan this QR code to set up your account using your preferred authenticator app. Popular choices include __googleAuthenticator__, __microsoftAuthenticator__ and __authy__.', [
+                                '__googleAuthenticator__' => '<a href="https://support.google.com/accounts/answer/1066447?hl=en" target="_blank">'. __tr('Google Authenticator') .'</a>',
+                                '__microsoftAuthenticator__' => '<a href="https://www.microsoft.com/en-in/security/mobile-authenticator-app" target="_blank">'. __tr('Microsoft Authenticator') .'</a>',
+                                '__authy__' => '<a href="https://www.authy.com/download/" target="_blank">'. __tr('Authy') .'</a>'
+                            ]) 
+                        !!}</p>
+                                            {{-- 2FA QR Code --}}
+                                            <div class="ml-6 text-center">
+                                                {!! $qrCodeSvg !!}
+                                            </div>
+                                            {{-- /2FA QR Code --}}
+
+                                            {{-- QR Code Secret Code --}}
+                                            <div class="mt-2 text-center">
+                                                <h1><strong>{{ decrypt(auth()->user()->two_factor_secret) }}</strong></h1>
+                                            </div>
+                                            {{-- /QR Code Secret Code --}}
+                                            <hr>
+                                            @if(!auth()->user()->two_factor_confirmed_at)
+                                             <fieldset>
+                                            <legend>{{ __tr('Step 2 - Activate') }}</legend>
+                                            <p>{{  __tr('Once you scan with 2FA app, you need activate it') }}</p>
+                                                <a class="lw-btn btn btn-lg btn-primary mt-1" data-toggle="modal" data-target="#lwActivate2FACodeModal">{{ __tr('Activate') }}</a>
+                                                 </fieldset>
+                                            @endif
+                                        </fieldset>
+                                        @endif
+                                    </div>
+                                </div>
+                                <fieldset class="lw-fieldset mb-3" x-data="{panelOpened:false}" x-cloak>
+                                    <p class="alert alert-warning">{{  __tr('Write down following recovery codes, in case if you loose access to device app etc.') }}</p>
+                                    <legend class="lw-fieldset-legend">
+                                        {{ __tr('Recovery Codes') }}
+                                    </legend>
+                                    <button type="button" @click="panelOpened = !panelOpened"  class="btn btn-dark">{{  __tr('Show Recovery Codes') }}</button>
+                                    @php
+                                        $recoveryCodes = (array) auth()->user()->recoveryCodes();
+                                    @endphp
+                                    <div x-show="panelOpened">
+                                        <ul class="list-group list-group-flush">
+                                            @foreach($recoveryCodes as $code)
+                                                <li class="list-group-item">{{ $code }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                </fieldset>
+                            </div>
+                        @endif
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
+
+<x-lw.modal id="lwActivate2FACodeModal" :header="__tr('Activate 2FA')" :hasForm="true">
+    <x-lw.form id="lwActivate2FACodeForm" :action="route('user.profile.2fa.confirm')" :data-callback-params="['modalId' => '#lwActivate2FACodeModal']" data-callback="window.activate2Fa">
+        {{-- Modal Body --}}
+        <div class="lw-form-modal-body">
+            <x-lw.input-field type="text" id="lwConfirmCode" data-form-group-class="" :label="__tr('Code')" name="confirm_code" required="true"/>
+        </div>
+        {{-- /Modal Body --}}
+
+        <!-- form footer -->
+        <div class="modal-footer">
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary">{{ __tr('Activate') }}</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">{{ __tr('Close') }}</button>
+        </div>
+        <!-- /form footer -->
+    </x-lw.form>
+</x-lw.modal>
+
+@push('appScripts')
+<script>
+    window.activate2Fa = function(responseData) {
+        if (responseData.reaction == 1) {
+            __Utils.viewReload();
+        }
+    }
+</script>
+@endpush

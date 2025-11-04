@@ -7,6 +7,6 @@ return [
     'your_email' => '',
     'registration_id' => '',
     'name' => 'WhatsJet',
-    'version' => '6.2.2',
+    'version' => '6.4.0',
     'app_update_url' => env('APP_UPDATE_URL', 'https://product-central.livelyworks.net'),
 ];

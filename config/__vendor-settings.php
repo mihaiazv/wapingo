@@ -499,6 +499,15 @@ return [
                     'numeric',
                 ],
             ],
+            'enable_whatsapp_calling' => [
+                'key' => 'enable_whatsapp_calling',
+                'data_type' => 2,    // boolean
+                'default' => false,
+                'hide_value' => false,
+                'ignore_empty' => true,
+                'validation_rules' => [
+                ],
+            ],
         ],
         'language-settings' => [
             'translation_languages' => [

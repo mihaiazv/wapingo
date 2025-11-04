@@ -128,7 +128,7 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
     /**
      * Contact datatable source
      *
-     * @return array
+     * @return array|Object
      *---------------------------------------------------------------- */
     public function prepareContactDataTableSource($contactGroupUid = null)
     {
@@ -148,7 +148,7 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
             }
         }
         $contactCollection = $this->contactRepository->fetchContactDataTableSource($groupContactIds, $contactGroupUid);
-        // __dd($contactCollection);
+        
         $listOfCountries = getCountryPhoneCodes();
         // required columns for DataTables
         $requireColumns = [
@@ -186,6 +186,14 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
                 return !__isEmpty($titles) ? implode(', ', $titles) : '-';
             },
         ];
+        
+        $filterData = session('contact-filter-data-'.getUserUID());
+        $contactCount = $contactCollection['total'];
+        updateClientModels([
+            'isFilterApplied' => (!__isEmpty($filterData)) ? true : false,
+            'contactCount' => $contactCount,
+            'countString' => __tr('Total __contactCount__ contact(s) found.', ['__contactCount__' => $contactCount])
+        ]);
 
         // prepare data for the DataTables
         return $this->dataTableResponse($contactCollection, $requireColumns);
@@ -270,13 +278,35 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
         if (empty($selectedContactUids)) {
             return $this->engineFailedResponse([], __tr('Nothing to delete'));
         }
+
+        $isContactRemoveOrDeleted = false;
+        $groupUid = $request->get('group_uid');
+        $message = '';
+        // Check if group uid exists
+        if (!__isEmpty($groupUid)) {
+            $currentGroup = $this->contactGroupRepository->fetchIt($groupUid);
+
+            // Check if group exists
+            if (__isEmpty($currentGroup)) {
+                return $this->engineFailedResponse([], __tr('Group does not exists.'));
+            }
+
+            $selectedContactIds = $this->contactRepository->fetchItAll($selectedContactUids, [], '_uid')->pluck('_id');
+
+            if ($this->groupContactRepository->removeGroupContacts($currentGroup->_id, $selectedContactIds)) {
+                return $this->engineSuccessResponse([
+                    'reloadDatatableId' => '#lwContactList'
+                ], __tr('Contacts removed successfully.'));
+            }            
+        }
+
         // ask to delete the record
         if ($this->contactRepository->deleteSelectedContacts($selectedContactUids)) {
-            // if successful
             return $this->engineSuccessResponse([
                 'reloadDatatableId' => '#lwContactList'
             ], __tr('Contacts deleted successfully.') . $message);
-        }
+        }        
+        
         // if failed to delete
         return $this->engineFailedResponse([], __tr('Failed to delete Contacts'));
     }
@@ -288,11 +318,30 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
      *
      * @return array
      *---------------------------------------------------------------- */
-    public function processDeleteAllContact()
+    public function processDeleteAllContact($inputData)
     {
-        $testContactUid = getVendorSettings('test_recipient_contact');
-        // Delete All Contacts except test contact
-        if ($this->contactRepository->deleteAllContact(getVendorId(), $testContactUid)) {
+        $isContactsDeleted = false;
+        // Check if group contact id exists or not
+        if (__isEmpty($inputData['group_id'])) {
+            $testContactUid = getVendorSettings('test_recipient_contact');
+            // Delete All Contacts except test contact
+            if ($this->contactRepository->deleteAllContact(getVendorId(), $testContactUid)) {
+                $isContactsDeleted = true;
+            }            
+        } elseif (!__isEmpty($inputData['group_id'])) {
+            $contactGroup = $this->contactGroupRepository->fetchIt($inputData['group_id']);
+            
+            // Check if contact group exists
+            if (__isEmpty($contactGroup)) {
+                return $this->engineFailedResponse([], __tr('Contact group does not exists.'));
+            }
+
+            if ($this->groupContactRepository->deleteGroupContactByGroupId($contactGroup->_id)) {
+                $isContactsDeleted = true;
+            }            
+        }        
+        
+        if ($isContactsDeleted) {
             // if successful
             return $this->engineSuccessResponse([
                 'reloadDatatableId' => '#lwContactList'
@@ -881,7 +930,8 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
         // Temp CSV path
         $tempFile = tempnam(sys_get_temp_dir(), "exported_contacts_{$vendorId}.csv");
         $fp = fopen($tempFile, 'w');
-
+        // Write UTF-8 BOM so Excel recognizes Arabic properly
+        fwrite($fp, "\xEF\xBB\xBF");
         // Write header row
         fputcsv($fp, $header);
 
@@ -923,6 +973,7 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
                 }
 
                 fputcsv($fp, array_map(function ($value) {
+                    $value = mb_convert_encoding($value, 'UTF-8', 'auto'); // ensure UTF-8
                     // Only wrap long numeric values
                     return (string) (((is_numeric($value) && strlen($value) >= 11)
                         ? '="' . $value . '"'
@@ -2050,5 +2101,134 @@ class ContactEngine extends BaseEngine implements ContactEngineInterface
         }
 
         return $this->engineResponse(14, [], __tr('Nothing Update.'), true);
+    }
+
+    /**
+     * Prepare Contact List Paginate Data
+     *
+     * @return  Object
+     *---------------------------------------------------------------- */
+    public function apiPrepareContactListData()
+    {
+        $contactListData = $this->contactRepository->fetchContactListPaginatedData();
+
+        // if successful
+        return $this->engineSuccessResponse([
+            'contactList' => $contactListData
+        ], __tr('Contacts List.'));
+        
+    }
+
+    /**
+     * Prepare Contact
+     *
+     * @return  Object
+     *---------------------------------------------------------------- */
+    public function apiPrepareContact()
+    {
+        $phoneNumberOrEmail = request()->get('phone_number_or_email');
+
+        // Check if phone number or email exists
+        if (__isEmpty($phoneNumberOrEmail)) {
+            return $this->engineFailedResponse([], __tr('Please enter phone number or email.'));
+        }
+        
+        $contactListData = $this->contactRepository->fetchContactByPhoneNumberOrEmail($phoneNumberOrEmail);
+
+        // if successful
+        return $this->engineSuccessResponse([
+            'contact' => $contactListData
+        ], __tr('Contact details for __phoneNumberOrEmail__.', [
+            '__phoneNumberOrEmail__' => $phoneNumberOrEmail
+        ]));        
+    }
+
+    /**
+     * Prepare Contact Filter Support Data
+     *
+     * @return  Object
+     *---------------------------------------------------------------- */
+    public function prepareContactFilterSupportData()
+    {
+        $vendorId = getVendorId();
+        $filterData = session('contact-filter-data-'.getUserUID());
+        $vendorContactCustomFields = $this->contactCustomFieldRepository->fetchItAll([
+            'vendors__id' => $vendorId
+        ]);
+
+        $allLabels = $this->labelRepository->fetchItAll([
+            'vendors__id' => $vendorId
+        ]);
+
+        return $this->engineSuccessResponse([
+            'teamMembers' => $this->userRepository->fetchTeamMembers(),
+            'groupData' => $this->contactGroupRepository->fetchItAll(['vendors__id' => getVendorId()]),
+            'vendorContactCustomFields' => $vendorContactCustomFields,
+            'allLabels' => $allLabels,
+            'filterData' => $filterData,
+            'isFilterApplied' => (!__isEmpty($filterData)) ? true : false
+        ]);        
+    }
+
+    /**
+     * Store contact filter process
+     * 
+     * @param Array $inputData
+     *
+     * @return  Object
+     *---------------------------------------------------------------- */
+    public function storeContactFilterProcess($inputData)
+    {
+        unset($inputData['_token']);
+
+        $cleanInputData = $this->arrayFilterRecursive($inputData);
+        
+        // Try to filter a contact list with blank values
+        if (__isEmpty($cleanInputData)) {
+            return $this->engineFailedResponse([], __tr('Nothing to filter.'));
+        }
+
+        // Get current user uid
+        $userUid = getUserUID();
+        // Check if request for clear filter
+        if (data_get($inputData, 'clear_filter')) {
+            // If clear filter key exists then remove filter
+            session()->forget('contact-filter-data-'.$userUid);
+            return $this->engineSuccessResponse([], __tr('Filter Clear Successfully.'));  
+        }
+
+        // if request for store filter data then store it in session
+        session()->put('contact-filter-data-'.$userUid, $cleanInputData);
+        // Success response
+        return $this->engineSuccessResponse([], __tr('Filter Applied.'));        
+    }
+
+    /**
+     * Filter multidimensional array
+     * 
+     * @param Array $inputData
+     *
+     * @return  Object
+     *---------------------------------------------------------------- */
+    protected function arrayFilterRecursive(array $array): array
+    {
+        foreach ($array as $key => $value) {
+            // If value is an array, clean it recursively
+            if (is_array($value)) {
+                $array[$key] = $this->arrayFilterRecursive($value);
+
+                // If the sub-array became empty, remove it
+                if (empty($array[$key])) {
+                    unset($array[$key]);
+                }
+            } else {
+                // If scalar value is null OR blank string, remove it
+                if (is_null($value) || (is_string($value) && trim($value) === '')) {
+                    unset($array[$key]);
+                }
+            }
+        }
+
+        return $array;
     }
 }

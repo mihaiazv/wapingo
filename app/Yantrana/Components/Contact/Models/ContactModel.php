@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Schema;
 
 class ContactModel extends BaseModel
 {
@@ -226,5 +227,12 @@ class ContactModel extends BaseModel
     public function assignedUser(): HasOne
     {
         return $this->hasOne(AuthModel::class, '_id', 'assigned_users__id');
+    }
+
+    public function scopeWithoutColumn($query, $ignoreColumns)
+    {
+        $columns = Schema::getColumnListing($this->getTable());
+        $columns = array_diff($columns, $ignoreColumns);
+        return $query->select($columns);
     }
 }

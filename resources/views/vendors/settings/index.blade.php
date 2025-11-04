@@ -35,5 +35,6 @@
         @if ($pageType == 'whatsapp-cloud-api-setup')
         @include('vendors.settings.business-profile-partial')
         @include('vendors.settings.display-name')
+        @include('vendors.settings.register-phone-number')
         @endif
 @endsection()

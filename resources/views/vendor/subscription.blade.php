@@ -18,6 +18,7 @@
    $isManualSubscription = $currentSubscription?->plan_id ? true : false;
    $isCashierSubscription = $currentSubscription?->stripe_status ? true : false;
    $hasPlansForPurchase = false;
+   $isRazorpaySubscription = ($currentSubscription?->is_auto_recurring == 1 and $currentSubscription?->gateway == 'razorpay') ? true : false;
 
    foreach ($planStructure as $planKey => $plan) {
        $plan = $planDetails[$planKey];
@@ -263,16 +264,19 @@
                                    </div>
                                @endforeach
                             </div>
-                               @if ($isCashierSubscription && getAppSettings('enable_stripe') and $isValidStripeKeys)
+                                @stack('autoSubscriptionChangePlanStack')
+                                @if ($isCashierSubscription && getAppSettings('enable_stripe') and $isValidStripeKeys)
                                <form class="lw-ajax-form" data-show-processing="true" action="{{ route('subscription.write.change') }}" method="post">
                                 @csrf
-                                <input type="hidden" name="plan" x-model="selectedPlanFrequencyNew">
-                                <button value="stripe" type="submit" class="mt-4 btn btn-primary">
-                                    {{ __tr('Change/Renew Plan') }}
-                                </button>
+                                    <input type="hidden" name="plan" x-model="selectedPlanFrequencyNew">
+
+                                    <button value="stripe" type="submit" class="mt-4 btn btn-primary">
+                                        {{ __tr('Change/Renew Plan Via Stripe') }}
+                                    </button>
+                                    
                                 </form>
                                @else
-                               @if (getAppSettings('enable_upi_payment') or getAppSettings('enable_bank_transfer'))
+                               @if ((getAppSettings('enable_upi_payment') or getAppSettings('enable_bank_transfer') or getAppSettings('enable_paypal') or getAppSettings('enable_razorpay') or getAppSettings('enable_paystack') or getAppSettings('enable_yoomoney') or getAppSettings('enable_phonepe')) and !$isRazorpaySubscription)
                                <fieldset>
                                 <!-- ---------- This form for when change Subscription -------------- -->
                                 <legend>{{  __tr('Manual/Prepaid Subscription') }}</legend>
@@ -316,7 +320,13 @@
                                        <label for="lwYooMoneyPaymentOption" class="mr-4"><h3><input type="radio" id="lwYooMoneyPaymentOption" name="payment_method" value="yoomoney"><img height="100" width="90" src="{{ asset('imgs/yoomoney.png') }}"> </h3></label>
                                        @endif
                                       {{--  /yoomoney payment button --}}
-                                      
+
+                                        {{-- phonepe payment button --}}
+                                        @if (getAppSettings('enable_phonepe'))
+                                        <label for="lwPhonePePaymentOption" class="mr-4"><h3><input type="radio" id="lwPhonePePaymentOption" name="payment_method" value="phonepe"><img height="80" src="{{ asset('imgs/phonepe.png') }}"> </h3></label>
+                                        {{-- phonepe payment button --}}
+                                        @endif
+
                                         <div class="my-3">
                                             <hr>
                                             <button type="submit" class="btn btn-primary btn-lg " href="">{{  __tr('Continue') }}</button>
@@ -407,7 +417,7 @@
                                    @if (getAppSettings('enable_stripe') and $isValidStripeKeys)
                                    <fieldset>
                                         <legend for="card-element">
-                                            <i class="fab fa-cc-stripe"></i> {{ __tr('Auto Subscription - Credit or Debit card') }}
+                                            <i class="fab fa-cc-stripe"></i> {{ __tr('Stripe Auto Subscription - Credit or Debit card') }}
                                         </legend>
                                         <form action="{{ route('subscription.write.create') }}" method="post" id="payment-form"  data-secret="{{ $intent->client_secret }}">
                                             @csrf
@@ -424,7 +434,10 @@
                                     </form>
                                     </fieldset>
                                     @endif
-                            <fieldset>
+                                    <!-- Stack for recurring payment Subscribe Now Button -->
+                                    @stack('autoSubscriptionSubscribeNowStack')
+                                    <!-- Stack for recurring payment Subscribe Now Button -->
+                                <fieldset>
                                  <!--  ----------- This form for New Subscription -------------  -->
                                <legend>{{  __tr('Manual/Prepaid Subscription') }}</legend>
                                @if($isExtendedLicence)
@@ -463,6 +476,11 @@
                                 <label for="lwYooMoneyPaymentOption" class="mr-4"><h3><input type="radio" id="lwYooMoneyPaymentOption" name="payment_method" value="yoomoney"><img height="100" width="90" src="{{ asset('imgs/yoomoney.png') }}"> </h3></label>
                                 @endif
                                {{--  /yoomoney payment button --}}
+                                
+                               @if (getAppSettings('enable_phonepe'))
+                               <label for="lwPhonePePaymentOption" class="mr-4"><h3><input type="radio" id="lwPhonePePaymentOption" name="payment_method" value="phonepe"><img height="80" src="{{ asset('imgs/phonepe.png') }}"> </h3></label>
+                               @endif
+
                                <div class="my-3">
                                 <hr>
                                 <button type="submit" class="btn btn-primary btn-lg " href="">{{  __tr('Continue') }}</button>
@@ -484,9 +502,9 @@
                        </div>
                    </div>
            </div>
-               @endif
-               @if (getAppSettings('enable_stripe') and getAppSettings('stripe_enable_invoice_list') and $isValidStripeKeys)
-               <div class="card mt-4">
+            @endif
+            @if (getAppSettings('enable_stripe') and getAppSettings('stripe_enable_invoice_list') and $isValidStripeKeys)
+            <div class="card mt-4">
                 <div class="card-header">
                     {{  __tr('Stripe Invoices') }}
                 </div>
@@ -518,6 +536,7 @@
                 </div>
             </div>
             @endif
+            @stack('autoSubscriptionInvoiceListStack')
            </div>
        </div>
    </div>
@@ -528,7 +547,7 @@
 <script>
     $(document).ready(function() {
     'use strict';
-    $('#invoicesTable').DataTable({
+        $('#invoicesTable').DataTable({
             ajax:false,
             serverSide: false,
             // "ordering": false,
@@ -537,7 +556,7 @@
             formatNumber: function (numberValue) {
                 return __Utils.formatAsLocaleNumber(numberValue);
             },
-        });
+        });        
     } );
 </script>
 @if(getAppSettings('enable_stripe') and $isValidStripeKeys and !$existingManualSubscriptionPendingRequest)

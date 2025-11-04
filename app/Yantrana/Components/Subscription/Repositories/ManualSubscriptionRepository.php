@@ -57,6 +57,9 @@ class ManualSubscriptionRepository extends BaseRepository implements ManualSubsc
                 'remarks',
                 'charges_frequency',
                 'charges',
+            ],
+            'fieldAlias' => [
+                'is_auto_subscription' => 'is_auto_recurring'
             ]
         ];
         // get Model result for dataTables

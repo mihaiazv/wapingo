@@ -28,10 +28,20 @@
         <!-- Phone_Number -->
        <x-lw.input-field class="disabled" disabled type="text" id="lwPhoneNumberEditField"  minlength="9" data-form-group-class="" :label="__tr('Mobile Number')" value="<%- __tData.wa_id %>" name="phone_number"  />
         <!-- /Phone_Number -->
+
         <!-- Language Code -->
-        <x-lw.input-field type="text" id="lwLanguageCodeEditField" data-form-group-class=""
-        :label="__tr('Language Code')" name="language_code" value="<%- __tData.language_code %>" />
-    <!-- /Language Code -->
+        <?php $languages = include app_path('Yantrana/Support/languages.php'); ?>
+        <label for="lwContactEditSelectLanguage"><?= __tr('Language') ?></label>
+        <select id="lwContactEditSelectLanguage" name="language_code" required data-lw-plugin="lwSelectize" data-selected="<%- __tData.language_code %>">
+            @if(!__isEmpty($languages))
+                <option value="">{{ __tr('Select Language') }}</option>
+                @foreach($languages as $key => $language)
+                <option value="<?= $language['code'] ?>" required><?= $language['language'] ?> (<?= $language['code'] ?>)</option>
+                @endforeach
+            @endif
+        </select>
+        <!-- /Language Code -->
+
         <!-- Email -->
         <x-lw.input-field type="email" id="lwEmailEditField" data-form-group-class="" :label="__tr('Email')" value="<%- __tData.email %>" name="email"/>
         <!-- /Email -->

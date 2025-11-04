@@ -28,6 +28,7 @@ namespace App\Yantrana\Components\Dashboard;
 
 use Illuminate\Support\Carbon;
 use App\Yantrana\Base\BaseEngine;
+use App\Yantrana\Components\Vendor\VendorEngine;
 use App\Yantrana\Components\User\Repositories\UserRepository;
 use App\Yantrana\Components\Vendor\Repositories\VendorRepository;
 use App\Yantrana\Components\Contact\Repositories\ContactRepository;
@@ -109,6 +110,11 @@ class DashboardEngine extends BaseEngine implements DashboardEngineInterface
     protected $contactCustomFieldRepository;
 
     /**
+     * @var VendorEngine - Vendor Engine
+     */
+    protected $vendorEngine;
+
+    /**
      * Constructor
      *
      * @param  VendorRepository  $vendorRepository  - Vendor Repository
@@ -123,6 +129,7 @@ class DashboardEngine extends BaseEngine implements DashboardEngineInterface
      * @param  BotReplyRepository  $botReplyRepository  - Bot Reply repository
      * @param  BotFlowRepository  $botFlowRepository  - Bot Flow repository
      * @param  ContactCustomFieldRepository  $contactCustomFieldRepository  -Custom Contact Fields repository
+     * @param  VendorEngine  $vendorEngine - Vendor Engine
      *
      * @return void
      */
@@ -139,7 +146,8 @@ class DashboardEngine extends BaseEngine implements DashboardEngineInterface
         CampaignRepository $campaignRepository,
         BotReplyRepository $botReplyRepository,
         BotFlowRepository $botFlowRepository,
-        ContactCustomFieldRepository $contactCustomFieldRepository
+        ContactCustomFieldRepository $contactCustomFieldRepository,
+        VendorEngine $vendorEngine
     ) {
         $this->vendorRepository = $vendorRepository;
         $this->userRepository = $userRepository;
@@ -154,6 +162,7 @@ class DashboardEngine extends BaseEngine implements DashboardEngineInterface
         $this->botReplyRepository = $botReplyRepository;
         $this->botFlowRepository = $botFlowRepository;
         $this->contactCustomFieldRepository = $contactCustomFieldRepository;
+        $this->vendorEngine = $vendorEngine;
     }
 
     /**
@@ -218,6 +227,7 @@ class DashboardEngine extends BaseEngine implements DashboardEngineInterface
             'totalMessagesProcessed' => $this->whatsAppMessageLogRepository->countIt(
                 array_merge($vendorWhereClause, ['is_system_message' => null])
             ),
+            'vendorInfo' => $this->vendorEngine->getBasicSettings($vendorId)
         ]);
     }
 

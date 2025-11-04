@@ -32,6 +32,7 @@ use Exception;
 use File;
 use Illuminate\Filesystem\Filesystem;
 use YesFileStorage;
+use Illuminate\Support\Facades\Http;
 
 class MediaEngine extends BaseMediaEngine implements MediaEngineInterface
 {
@@ -243,7 +244,15 @@ class MediaEngine extends BaseMediaEngine implements MediaEngineInterface
         ];
         $filesStored = [];
         try {
-            $fileData = $fileValue['body'];
+            if (isset($fileValue['media_url']) and !__isEmpty($fileValue['media_url'])) {
+                $fileData = Http::get($fileValue['media_url']);
+                if (!isset($fileValue['mime_type'])) {
+                    $fileValue['mime_type'] = $fileData->header('Content-Type');
+                }                
+            } else {
+                $fileData = $fileValue['body'];
+            }
+            
             if ($fileData) {
                 $permanentFolderPath = getPathByKey("whatsapp_$mediaType", ['{_uid}' => $vendorUid]);
                 $tempUploadFolderPath = getPathByKey('user_temp_uploads', ['{_uid}' => $vendorUid]);
@@ -431,7 +440,12 @@ class MediaEngine extends BaseMediaEngine implements MediaEngineInterface
         return $uploadedFileOnLocalServer;
     }
 
-   
+    public function getMimeType($path) 
+    {
+        $fileData = Http::get($path);
+        
+        return $fileData->header('Content-Type');
+    }
 
      
 }

@@ -77,6 +77,11 @@ Route::middleware([
                 UserController::class,
                 'updateProfile',
             ])->name('user.profile.update');
+            // Confirm 2FA Authentication
+            Route::post('/confirm-2fa', [
+                UserController::class,
+                'confirm2FAuthentication',
+            ])->name('user.profile.2fa.confirm');
         });
     // SuperAdmin Routes
     Route::middleware([
@@ -570,12 +575,12 @@ Route::middleware([
                         'scheduleCampaign',
                     ])->name('vendor.campaign.schedule.process');
 
-                    Route::get('/status/{campaignUid}/view/{pageType?}', [
+                    Route::get('/status/{campaignUid}/view/{pageType?}/{logStatus?}', [
                         CampaignController::class,
                         'campaignStatusView',
                     ])->name('vendor.campaign.status.view');
                     //campaign queue log list view
-                    Route::get('/queue/{campaignUid}', [
+                    Route::get('/queue/{campaignUid}/{logStatus?}', [
                         CampaignController::class,
                         'campaignQueueLogListView',
                     ])->name('vendor.campaign.queue.log.list.view');
@@ -586,7 +591,7 @@ Route::middleware([
                     ])->name('vendor.campaign.requeue.log.write.failed');
 
                     //campaign executed log list view
-                    Route::get('/executed/{campaignUid}', [
+                    Route::get('/executed/{campaignUid}/{logStatus?}', [
                        CampaignController::class,
                        'campaignExecutedLogListView',
                     ])->name('vendor.campaign.executed.log.list.view');
@@ -726,8 +731,7 @@ Route::middleware([
                 Route::post('/contact/chat/clear-history/{contactUid}', [
                     WhatsAppServiceController::class,
                     'clearChatHistory',
-                ])->name('vendor.chat_message.delete.process');
-               
+                ])->name('vendor.chat_message.delete.process');               
 
                 Route::prefix('/templates')->group(function () {
                     // WhatsAppService list view
@@ -954,6 +958,11 @@ Route::middleware([
                 'updateDisplayName',
             ])->name('vendor.whatsapp.display_name.write');
 
+            Route::post('/register-phone-number', [
+                WhatsAppServiceController::class,
+                'registerPhoneNumber',
+            ])->name('vendor.whatsapp.register_phone_number.write');
+
             Route::post('/two-step-verification/update', [
                 WhatsAppServiceController::class,
                 'updateTwoStepVerification',
@@ -1051,6 +1060,12 @@ Route::middleware([
                 ManualSubscriptionController::class,
                 'yoomoneyCapturePayment'
             ])->name('yoomoney.capture.payment');
+
+            // PhonePe order checkout
+            Route::post('/phone-pe/capture-payment', [
+                ManualSubscriptionController::class,
+                'phonePeCapturePayment'
+            ])->name('phonepe.capture.payment');
            
 
             //payment success page
@@ -1112,7 +1127,16 @@ Route::middleware([
                     ContactController::class,
                     'prepareContactList',
                 ])->name('vendor.contact.read.list');
-
+                // Get contact filter support data
+                Route::get('/filter-support-data', [
+                    ContactController::class,
+                    'getContactFilterSupportData',
+                ])->name('vendor.contact.read.filter_support_data');
+                // Contact store filter data
+                Route::post('/filter-store-process', [
+                    ContactController::class,
+                    'processStoreContactFilter',
+                ])->name('vendor.contact.write.store_contact_filter');
                 // Contact delete process
                 Route::post('/{contactIdOrUid}/delete-process', [
                     ContactController::class,

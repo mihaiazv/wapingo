@@ -172,7 +172,7 @@ class ConfigurationEngine extends BaseEngine implements ConfigurationEngineInter
         if (__isEmpty($defaultSettings)) {
             return $this->engineResponse(18, ['show_message' => true], __tr('Invalid page type.'));
         }
-
+        $embeddedSignUpAddon = (getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon', 'registration_id') and (sha1(array_get($_SERVER, 'HTTP_HOST', '') . getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon','registration_id') . '1.0+') === getAppSettings('lwAddonWhatsJetEmbeddedSignUpAddon','signature')));
         $isExtendedLicense = (getAppSettings('product_registration', 'licence') === 'dee257a8c3a2656b7d7fbe9a91dd8c7c41d90dc9');
         // Check if input data exists
         if (! __isEmpty($inputData)) {
@@ -250,16 +250,16 @@ class ConfigurationEngine extends BaseEngine implements ConfigurationEngineInter
                     ], __tr('You need to purchase extended license to use live keys.'));
                 }
 
-                if (!$isExtendedLicense and in_array($inputKey, [
+                if (!$embeddedSignUpAddon and in_array($inputKey, [
                        'embedded_signup_app_id',
                        'embedded_signup_app_secret',
                        'embedded_signup_config_id',
                        ]) and $inputValue) {
                     return $this->engineFailedResponse([
                         'show_message' => true
-                    ], __tr('You need to purchase extended license to use Embedded Signup.'));
+                    ], __tr('You need to purchase Embedded Signup Addon to use Embedded Signup.'));
                 }
-                if ($isExtendedLicense and in_array($inputKey, [
+                if ($embeddedSignUpAddon and in_array($inputKey, [
                        'embedded_signup_app_id',
                        'embedded_signup_config_id',
                        'embedded_signup_app_secret',
@@ -276,6 +276,7 @@ class ConfigurationEngine extends BaseEngine implements ConfigurationEngineInter
                     }
                 }
             }
+
             // Send data for store or update
             if (
                 ! __isEmpty($dataForStoreOrUpdate)

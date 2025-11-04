@@ -50,7 +50,7 @@ $techAppConfig = [
         'cancelled' => __tr('Cancelled'),
         'pending' => __tr('Pending'),
         'initiated' => __tr('Initiated'),
-        'canceled' => __tr('Cancelled'), // managed to translation status for subscription table
+        'canceled' => __tr('Canceled'), // managed to translation status for subscription table
     ],
     'subscription_methods' => [
         'auto' => __tr('Auto'),
@@ -271,7 +271,11 @@ $techAppConfig = [
         'DISABLE_AI_BOT' => __tr('Disable AI Bot for this chat.'),
         'DISABLE_REPLY_BOT' => __tr('Disable Reply Bot for this chat.'),
         'ERROR' => __tr('__dynamicTitle__'),
-    ]
+    ],
+    'call_request_actions' => [
+        'accept' => __tr('Call request accepted.'),
+        'reject' => __tr('Call request was declined.')
+    ],
 ];
 
 $appTechConfig = [];

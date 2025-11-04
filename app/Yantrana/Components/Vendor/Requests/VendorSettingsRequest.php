@@ -73,6 +73,7 @@ class VendorSettingsRequest extends BaseRequest
                 $enablePaypal = Arr::get($inputData, 'enable_paypal');
                 $enableStripe = Arr::get($inputData, 'enable_stripe');
                 $enableRazorpay = Arr::get($inputData, 'enable_razorpay');
+                $enableRazorpaySubscription = Arr::get($inputData, 'enable_razorpay_subscription');
                 // check if paypal checkout is enable
                 if ($enablePaypal) {
                     $paypalTestMode = $inputData['use_test_paypal_checkout'];
@@ -106,7 +107,7 @@ class VendorSettingsRequest extends BaseRequest
                     }
                 }
                 // check if razorpay payment enable
-                if ($enableRazorpay) {
+                if ($enableRazorpay or $enableRazorpaySubscription) {
                     $razorpayTestMode = $inputData['use_test_razorpay'];
                     // Check if stripe test mode is enable
                     if ($razorpayTestMode and ! $inputData['razorpay_test_keys_exist']) {

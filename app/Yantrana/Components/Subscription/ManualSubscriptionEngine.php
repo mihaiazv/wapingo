@@ -26,6 +26,7 @@
 namespace App\Yantrana\Components\Subscription;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use App\Yantrana\Base\BaseEngine;
 use App\Yantrana\Base\BaseMailer;
@@ -37,6 +38,8 @@ use App\Yantrana\Components\Subscription\PaymentEngines\PaypalEngine;
 use App\Yantrana\Components\Subscription\PaymentEngines\RazorpayEngine;
 use App\Yantrana\Components\Subscription\PaymentEngines\PaystackEngine;
 use App\Yantrana\Components\Subscription\PaymentEngines\YoomoneyEngine;
+use App\Yantrana\Components\Subscription\PaymentEngines\PhonePeEngine;
+use App\Yantrana\Components\Subscription\SubscriptionEngine;
 
 use App\Yantrana\Components\Subscription\Repositories\ManualSubscriptionRepository;
 use App\Yantrana\Components\Subscription\Interfaces\ManualSubscriptionEngineInterface;
@@ -88,6 +91,15 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
      */
     protected $yoomoneyEngine;
 
+    /**
+     * @var SubscriptionEngine - Subscription Engine
+     */
+    protected $subscriptionEngine;
+
+    /**
+     * @var PhonePeEngine - PhonePe Engine
+     */
+    protected $phonePeEngine;
 
     /**
       * Constructor
@@ -111,6 +123,8 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
         RazorpayEngine $razorpayEngine,
         PaystackEngine $paystackEngine,
         YoomoneyEngine $yoomoneyEngine,
+        SubscriptionEngine $subscriptionEngine,
+        PhonePeEngine $phonePeEngine
     ) {
 
         $this->manualSubscriptionRepository = $manualSubscriptionRepository;
@@ -122,6 +136,8 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
         $this->razorpayEngine = $razorpayEngine;
         $this->paystackEngine = $paystackEngine;
         $this->yoomoneyEngine = $yoomoneyEngine;
+        $this->subscriptionEngine = $subscriptionEngine;
+        $this->phonePeEngine = $phonePeEngine;
     }
 
 
@@ -175,7 +191,10 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
             'status' => function ($rowData) use ($subscriptionStatus) {
                 return Arr::get($subscriptionStatus, $rowData['status']);
             },
-            'remarks',
+            'is_auto_subscription' => function($rowData) {
+                return $rowData['is_auto_recurring'] ? __tr('Yes') : __tr('No');
+            },
+            'remarks','is_auto_recurring'
         ];
         // prepare data for the DataTables
         return $this->dataTableResponse($manualSubscriptionCollection, $requireColumns);
@@ -481,6 +500,22 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
                 );
             }
         }
+        
+        $phonePeInitiatePaymentData = null;
+        // Check payment method is phon-pe
+        if ($request->payment_method == 'phonepe') {
+            $phonePeInitiatePaymentData = $this->phonePeEngine->initiatePayment($subscriptionRequestRecord->_uid, $planCharges);
+
+            if ($phonePeInitiatePaymentData->failed()) {
+                return $this->engineFailedResponse(
+                    [
+                        'show_message' => true
+                    ],
+                    $phonePeInitiatePaymentData->message()
+                );
+            }
+        }
+        
         return $this->engineSuccessResponse([
             'subscriptionRequestRecord' => $subscriptionRequestRecord,
             'existingRequestExist' => $existingRequestExist,
@@ -496,6 +531,7 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
                 'url' => base64_encode($upiPaymentLink)
             ]),
             'checkPlanUsages' => null,
+            'phonePeInitiatePaymentData' => data_get($phonePeInitiatePaymentData, 'data.phonePeInitiateData')
         ]);
     }
 
@@ -543,7 +579,7 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
             return $this->engineSuccessResponse([], __tr('Transaction already been processed'));
         }
         // check payment method is paypal
-        if ($subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'paypal' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'razorpay' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'paystack' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'yoomoney') {
+        if ($subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'paypal' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'razorpay' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'paystack' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'yoomoney' || $subscriptionRequestRecord->__data['manual_txn_details']['selected_payment_method'] == 'phonepe') {
             // deactivate existing active plans
 
             $this->manualSubscriptionRepository->updateItAll([
@@ -864,4 +900,171 @@ class ManualSubscriptionEngine extends BaseEngine implements ManualSubscriptionE
           return $this->engineFailedResponse(['show_message' => true], __tr('Payment Failed'));
     }
 
+    public function prepareProrated($planRequest)
+    {
+        // $planRequest = explode('___', $request->selected_plan);
+        abortIf(!isset($planRequest[0]) or !isset($planRequest[1]), null, __tr('Invalid Plan or Frequency'));
+        $planFrequencyKey = $planRequest[1];
+        $planDetails = getPaidPlans($planRequest[0]);
+        abortIf(!$planDetails, null, __tr('Invalid Plan or Frequency'));
+        $planCharges = $planDetails['charges'][$planFrequencyKey]['charge'];
+        $planChargesFormatted = formatAmount($planCharges, true, true);
+        $planFrequencyTitle = $planDetails['charges'][$planFrequencyKey]['title'];
+        $endsAt = now();
+        $daysForCalculation = 0;
+        switch ($planFrequencyKey) {
+            case 'monthly':
+                $endsAt = now()->addMonth();
+                $daysForCalculation = now()->daysInMonth;
+                break;
+            case 'yearly':
+                $endsAt = now()->addYear();
+                $daysForCalculation = now()->daysInYear;
+                break;
+        }
+        $vendorId = getVendorId();
+        $existingRequestExist = false;
+        $preparePlanDetails = [
+            'plan_id' => $planDetails['id'],
+            'plan_features' => $planDetails['features'],
+            'plan_charges' => $planCharges,
+            'plan_frequency' => $planFrequencyKey,
+            // may prorated based on current plan etc
+            'prorated_remaining_balance_days' => 0,
+            'prorated_remaining_balance_amount' => 0,
+            'existing_plan_days_adjusted' => 0
+        ];
+        // get the current subscription
+        $currentActiveSubscription = $this->manualSubscriptionRepository->fetchIt([
+            'vendors__id' => $vendorId,
+            'status' => 'active',
+        ]);
+        $existingPlanDaysAdjustments = false;
+        $checkPlanUsages = $this->dashboardEngine->checkPlanUsages($planDetails, $vendorId);
+        if ($checkPlanUsages) {
+            return $this->engineFailedResponse(
+                [
+                'show_message' => true,
+                'planDetails' => $planDetails,
+                'existingRequestExist' => $existingRequestExist,
+                'checkPlanUsages' => $checkPlanUsages,
+            ],
+                'overused features'
+            );
+        }
+        // prorated adjustments
+        if (!__isEmpty($currentActiveSubscription) and $planCharges and $currentActiveSubscription->charges and $currentActiveSubscription->ends_at) {
+            $existingCreatedAt = Carbon::parse($currentActiveSubscription->created_at);
+            $existingEndsAt = Carbon::parse($currentActiveSubscription->ends_at);
+            $existingPlanCharges = $currentActiveSubscription->charges;
+            // Calculate the total number of days in the billing period (from created_at to ends_at)
+            $existingTotalDays = $existingCreatedAt->diffInDays($existingEndsAt);
+            // Calculate the remaining days from today until ends_at
+            $remainingDays = Carbon::now()->diffInDays($existingEndsAt, false);
+            // Calculate daily charge
+            $dailyCharge = 0;
+            $proratedBalance = 0;
+            if ($existingTotalDays) {
+                $dailyCharge = $existingPlanCharges / $existingTotalDays;
+                // Calculate prorated balance
+                $proratedBalance = round($dailyCharge * $remainingDays, 2);
+            }
+            if ($proratedBalance > 0) {
+                $perDaysValueForNewPlan = $planCharges / $daysForCalculation;
+                $daysForRemainingAmount = floor($proratedBalance / $perDaysValueForNewPlan);
+                $endsAt = $endsAt->addDays($daysForRemainingAmount);
+                // if there are lots of days added then we need to restrict it max possible year
+                if ($endsAt->year > 9999) {
+                    // max year
+                    $endsAt = Carbon::create(9999, 12, 31, 23, 59, 59);
+                }
+                $preparePlanDetails = array_merge($preparePlanDetails, [
+                    // may prorated charges based on current plan etc
+                    'prorated_remaining_balance_days' => $remainingDays,
+                    'prorated_remaining_balance_amount' => $proratedBalance,
+                    'existing_plan_days_adjusted' => 1,
+                ]);
+                $existingPlanDaysAdjustments = true;
+            }
+        }
+
+        return $preparePlanDetails;
+    }
+
+    public function calculateSelectedPlanRemainingDaysViaAmount($planFrequency, $planCharges, $remainingAmount) 
+    {
+        $daysForCalculation = 0;
+        $endsAt = now();
+        switch ($planFrequency) {
+            case 'monthly':
+                $endsAt = now()->addMonth();
+                $daysForCalculation = now()->daysInMonth;
+                break;
+            case 'yearly':
+                $endsAt = now()->addYear();
+                $daysForCalculation = now()->daysInYear;
+                break;
+        }
+
+        $perDaysValueForNewPlan = $planCharges / $daysForCalculation;
+
+        $daysForRemainingAmount = floor($remainingAmount / $perDaysValueForNewPlan);
+
+        if ($daysForRemainingAmount > 0) {
+            $endsAt = $endsAt->addDays($daysForRemainingAmount);
+            // if there are lots of days added then we need to restrict it max possible year
+            if ($endsAt->year > 9999) {
+                // max year
+                $endsAt = Carbon::create(9999, 12, 31, 23, 59, 59);
+            }
+        }
+
+        return [
+            'days_for_remaining_amount' => $daysForRemainingAmount,
+            'end_at' => $endsAt
+        ];
+    }
+
+    /**
+    * Process phone-pe complete transaction.
+    *
+    * @param  array  $inputData
+    *---------------------------------------------------------------- */
+    public function processPhonePeCapturePayment($inputData)
+    {
+        // process card capture payment
+        $phonePeChargeRequest = $this->phonePeEngine->capturePayment($inputData['merchantOrderId']);
+        
+        if (!__isEmpty($phonePeChargeRequest)) {
+            $transactionDetails = $phonePeChargeRequest['data']['transactionDetail'];
+            //check reaction code is 1 or not
+            if ($phonePeChargeRequest['reaction_code'] == 1) {
+                if ($transactionDetails['state'] == 'COMPLETED') {
+                    $razorpayResponse['manual_subscription_uid'] = $transactionDetails['metaInfo']['udf1'];
+                    $razorpayResponse['txn_reference'] = $inputData['merchantOrderId'];
+
+                    // return this to store the payment data
+                    return $this->recordSentPaymentDetails($razorpayResponse);
+                } elseif ($transactionDetails['state'] == 'PENDING') {
+                    return $this->engineFailedResponse([
+                        'errorMessage' => 'Something went wrong, please contact system administrator',
+                    ], __tr('Payment in pending status'));
+                } elseif ($transactionDetails['state'] == 'FAILED') {
+                    return $this->engineFailedResponse([
+                        'errorMessage' => 'Payment Failed, please contact system administrator',
+                    ], __tr('Payment Failed'));
+                }
+
+            } else {
+                //error response
+                return $this->engineFailedResponse([
+                    'errorMessage' => 'Something went wrong, please contact system administrator',
+                ], __tr('Payment Failed'));
+            }
+        }
+        //error response
+        return $this->engineFailedResponse([
+           'errorMessage' => 'Something went wrong, please contact system administrator',
+                ], __tr('Payment Failed'));
+    }
 }

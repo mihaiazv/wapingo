@@ -35,7 +35,7 @@ use Illuminate\Support\Collection;
 
 class WhatsAppApiService extends BaseEngine implements WhatsAppServiceEngineInterface
 {
-    protected $baseApiRequestEndpoint = 'https://graph.facebook.com/v23.0/'; // Base Request endpoint
+    protected $baseApiRequestEndpoint = 'https://graph.facebook.com/v24.0/'; // Base Request endpoint
 
     protected $waAccountId; // WhatsApp Business Account ID
     protected $whatsAppPhoneNumberId; // Phone number ID
@@ -517,6 +517,20 @@ class WhatsAppApiService extends BaseEngine implements WhatsAppServiceEngineInte
     {
         return $this->apiGetRequest("{$whatsAppPhoneNumberId}", [
             'fields' => 'verified_name,name_status'
+        ]);
+    }
+
+    /**
+     * Get phone data information
+     *
+     * @param number $whatsAppPhoneNumberId
+     * @return array
+     * @link https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account-to-number-current-status
+     */
+    public function phoneInfo($whatsAppPhoneNumberId)
+    {
+        return $this->apiGetRequest("{$whatsAppPhoneNumberId}", [
+            'fields' => 'messaging_limit_tier,status,is_on_biz_app,is_pin_enabled,last_onboarded_time'
         ]);
     }
 

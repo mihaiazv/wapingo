@@ -54,6 +54,13 @@ class ManualSubscriptionModel extends BaseModel
             'prepared_plan_details' => 'array',
             'manual_txn_details' => 'array:extend',
             'txn_data' => 'array',
+            'auto_recurring_data' => 'array',
+            'authenticated' => 'array',
+            'activated' => 'array',
+            'charged' => 'array',
+            'completed' => 'array',
+            'cancelled' => 'array',
+            'updated' => 'array'
         ],
     ];
 

@@ -31,10 +31,11 @@ use Illuminate\Support\Str;
 use App\Yantrana\Base\BaseEngine;
 use Illuminate\Support\Facades\Http;
 use App\Yantrana\Components\WhatsAppService\Interfaces\WhatsAppServiceEngineInterface;
+use Carbon\Carbon;
 
 class WhatsAppConnectApiService extends BaseEngine implements WhatsAppServiceEngineInterface
 {
-    protected $baseApiRequestEndpoint = 'https://graph.facebook.com/v23.0/'; // Base Request endpoint
+    protected $baseApiRequestEndpoint = 'https://graph.facebook.com/v24.0/'; // Base Request endpoint
 
     protected $waAccountId; // WhatsApp Business Account ID
     protected $whatsAppPhoneNumberId; // Phone number ID
@@ -236,6 +237,9 @@ class WhatsAppConnectApiService extends BaseEngine implements WhatsAppServiceEng
             'vendorUid' => $vendorUid,
         ]));
         // https://developers.facebook.com/docs/whatsapp/embedded-signup/webhooks/override#delete-waba-alternate-callback
+        if (!$this->accessToken) {
+            $this->accessToken = getVendorSettings('whatsapp_access_token');
+        }
         $this->apiPostRequest("{$this->baseApiRequestEndpoint}{$wabaId}/subscribed_apps");
         return $this->apiPostRequest("{$this->baseApiRequestEndpoint}{$wabaId}/subscribed_apps", [
             "override_callback_uri" => $webhookUrl,
@@ -295,7 +299,7 @@ class WhatsAppConnectApiService extends BaseEngine implements WhatsAppServiceEng
      * @param string $appSecret
      * @return array
      *
-     * @link https://developers.facebook.com/docs/graph-api/reference/v23.0/app/subscriptions#delete
+     * @link https://developers.facebook.com/docs/graph-api/reference/v24.0/app/subscriptions#delete
      */
     public function disconnectBaseWebhook($appId, $appSecret, $wabaId = null)
     {

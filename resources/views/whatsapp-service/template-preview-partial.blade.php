@@ -35,7 +35,7 @@
                                             "\n" => '<br>',
                                             ];
                                         @endphp
-                                        <?= formatWhatsAppText(strtr($carouselTemplateData[0]['text'], $exampleBodyItems)) ?>
+                                        <?= formatWhatsAppText(strtr($cardItem['components']['1']['text'], $exampleBodyItems)) ?>
                                     </div>
                                 </div>
                             @endif

@@ -33,7 +33,7 @@
                        </div>
                     </div>
                     <a data-method="post" href="{{ route('central.vendors.user.write.logout_as') }}" class="lw-ajax-link-action px-5 dropdown-item">
-                        <span>{{ __tr('Back to Super Admin area') }}</span>
+                        <span>{{ __tr('Back to Super Admin Area') }}</span>
                         <i class="fa fa-sign-in-alt mr-1"></i>
                     </a>
                     @endif
@@ -75,6 +75,21 @@
                         <span>{{ __tr('My Profile') }}</span>
                     </a>
                     <div class="dropdown-divider"></div>
+                    @if(session('loggedByVendor') or session('loggedBySuperAdmin'))
+                     @if(session('loggedByVendor'))
+                    <a data-method="post" href="{{ route('vendor.user.write.logout_as') }}" class="lw-ajax-link-action dropdown-item">
+                        <span>{{ __tr('Back to your account') }}</span>
+                        <i class="fa fa-sign-in-alt mr-1"></i>
+                    </a>
+                    @elseif(session('loggedBySuperAdmin'))
+                    <a data-method="post" href="{{ route('central.vendors.user.write.logout_as') }}" class="lw-ajax-link-action dropdown-item">
+                        <span>{{ __tr('Back to Super Admin Area') }}</span>
+                        <i class="fa fa-sign-in-alt mr-1"></i>
+                    </a>
+                    @endif
+                    <div class="dropdown-divider"></div>
+            @endif
+                    
                     <a data-method="post" href="{{ route('auth.logout') }}" class="dropdown-item lw-ajax-link-action">
                         <i class="fas fa-sign-out-alt mr-1"></i>
                         <span>{{ __tr('Logout') }}</span>

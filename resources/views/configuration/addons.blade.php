@@ -83,6 +83,27 @@
                                 <a target="_blank" class="btn btn-info btn-sm" href="{{ $addonInfoButton }}">{{ $addonInfoButtonKey }}</a>
                                 @endforeach
                                </div>
+
+                                @if($addonInfo['enable'] ?? null)
+                                 <?php $addonIdentifier = $addonInfo['identifier']; ?>
+                                    <div class="mb-2 mt-2" x-data="{
+                                        submitForm: function (enableWhatsJetAddon) {
+                                            $('#lw{{ $addonIdentifier }}EnableForm').submit();
+                                        },
+                                        enableWhatsJetAddon: '{{ getAppSettings('lwEnable'.$addonIdentifier.'') }}'
+                                    }">
+                                        <form id="lw{{ $addonIdentifier }}EnableForm"
+                                            class="lw-ajax-form lw-form" name="lw_whats_jet_enable_addon" method="post"
+                                            action="<?= route('manage.configuration.write', ['pageType' => 'lwAddon'.$addonIdentifier.'']) ?>">
+
+                                            <input type="hidden" name="lwEnable{{ $addonIdentifier }}" x-bind:value="!enableWhatsJetAddon ? 1 : 0">
+
+                                            <x-lw.checkbox id="lwEnable{{ $addonIdentifier }}" :offValue="0" :checked="getAppSettings('lwEnable'.$addonIdentifier.'')" data-lw-plugin="lwSwitchery" :label="__tr('Enable')" x-model="enableWhatsJetAddon" @click="submitForm(!enableWhatsJetAddon)"/>
+
+                                        </form>
+                                    </div>
+                                @endif
+
                                <div class="card-footer text-center">
                                 @if($addonInfo['installed_version'] ?? null)
                                 <span class="text-light">
