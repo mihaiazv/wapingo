@@ -137,7 +137,7 @@ class AffiliateTracker
         ];
 
         foreach ($candidates as $header) {
-            $value = $request->server($header);
+            $value = $server->get($header);
 
             if ($value) {
                 $firstIp = trim(explode(',', $value)[0]);
