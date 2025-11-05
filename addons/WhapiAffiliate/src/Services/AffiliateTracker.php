@@ -136,36 +136,8 @@ class AffiliateTracker
             'REMOTE_ADDR',
         ];
 
-        $serverData = [];
-
-        if (method_exists($request, 'server')) {
-            $rawServer = $request->server();
-
-            if (is_array($rawServer)) {
-                $serverData = $rawServer;
-            } elseif (is_object($rawServer) && method_exists($rawServer, 'all')) {
-                $serverData = $rawServer->all();
-            }
-        }
-
-        if (empty($serverData) && property_exists($request, 'server') && is_object($request->server)) {
-            if (method_exists($request->server, 'all')) {
-                $serverData = $request->server->all();
-            }
-        }
-
-        if (! empty($_SERVER)) {
-            $serverData = array_merge($serverData, $_SERVER);
-        }
-
-        $normalizedServer = [];
-
-        foreach ($serverData as $key => $value) {
-            $normalizedServer[strtoupper($key)] = $value;
-        }
-
         foreach ($candidates as $header) {
-            $value = $normalizedServer[$header] ?? null;
+            $value = $server->get($header);
 
             if ($value) {
                 $firstIp = trim(explode(',', $value)[0]);

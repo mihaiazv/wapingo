@@ -195,15 +195,8 @@ class ManualSubscriptionEngineDecorator extends BaseManualSubscriptionEngine
             $planDetails['charges'][$planFrequencyKey]['charge'] = $planCharges;
             $planChargesFormatted = formatAmount($subscriptionRequestRecord->charges, true, true);
 
-            $existingAffiliateContext = data_get($subscriptionRequestRecord, '__data.affiliate_tracking');
-
-            if (!__isEmpty($affiliateContext) && __isEmpty($existingAffiliateContext)) {
-                $updatedAdditionalData = data_get($subscriptionRequestRecord, '__data', []);
-
-                if (! is_array($updatedAdditionalData)) {
-                    $updatedAdditionalData = (array) $updatedAdditionalData;
-                }
-
+            if (!__isEmpty($affiliateContext) && __isEmpty(Arr::get($subscriptionRequestRecord->__data, 'affiliate_tracking'))) {
+                $updatedAdditionalData = $subscriptionRequestRecord->__data ?? [];
                 $updatedAdditionalData['affiliate_tracking'] = $affiliateContext;
                 $this->manualSubscriptionRepository->updateIt($subscriptionRequestRecord, [
                     '__data' => $updatedAdditionalData,
@@ -313,21 +306,11 @@ class ManualSubscriptionEngineDecorator extends BaseManualSubscriptionEngine
                 'status' => 'cancelled',
             ]);
             $planStructure = getPaidPlans($subscriptionRequestRecord['plan_id']);
-            $affiliateContext = data_get($subscriptionRequestRecord, '__data.affiliate_tracking', []);
+            $affiliateContext = Arr::get($subscriptionRequestRecord['__data'], 'affiliate_tracking', []);
 
-            $updatedAdditionalData = data_get($subscriptionRequestRecord, '__data', []);
-            if (! is_array($updatedAdditionalData)) {
-                $updatedAdditionalData = (array) $updatedAdditionalData;
-            }
-
-            $manualTxnDetails = Arr::get($updatedAdditionalData, 'manual_txn_details', []);
-
-            if (! is_array($manualTxnDetails)) {
-                $manualTxnDetails = (array) $manualTxnDetails;
-            }
-
+            $updatedAdditionalData = $subscriptionRequestRecord['__data'] ?? [];
             $updatedAdditionalData['manual_txn_details'] = array_merge(
-                $manualTxnDetails,
+                Arr::get($updatedAdditionalData, 'manual_txn_details', []),
                 [
                     'txn_reference' => $request['txn_reference'],
                     'txn_date' => now(),
